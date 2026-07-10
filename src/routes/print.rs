@@ -39,6 +39,7 @@ pub fn router() -> Router<AppState> {
         .route("/print/uploads/:temp_id", delete(remove_upload))
         .route("/print/preview/:temp_id", get(preview))
         .route("/print/tasks/:task_id/preview", get(task_preview))
+        .route("/print/tasks/:task_id/source", get(task_source))
         .route("/print/submit", post(submit))
         .route("/print/tasks/:task_id", delete(cancel))
 }
@@ -216,6 +217,44 @@ pub async fn task_preview(
     headers.insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_static("inline; filename=print-preview.pdf"),
+    );
+    Ok((headers, Body::from(bytes)).into_response())
+}
+
+pub async fn task_source(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(task_id): Path<i64>,
+) -> AppResult<Response> {
+    let (owner_id, stored_path, file_name): (i64, String, String) =
+        sqlx::query_as("SELECT user_id, stored_path, file_name FROM print_tasks WHERE id = ?")
+            .bind(task_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound("print record not found".to_string()))?;
+
+    if !user.is_admin() && owner_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    let bytes = fs::read(&stored_path).await.map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound("source file has expired or is missing".to_string())
+        } else {
+            error.into()
+        }
+    })?;
+    let download_name = utils::sanitize_filename(&file_name);
+    let disposition = format!("attachment; filename=\"{download_name}\"");
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&disposition)
+            .unwrap_or_else(|_| HeaderValue::from_static("attachment")),
     );
     Ok((headers, Body::from(bytes)).into_response())
 }

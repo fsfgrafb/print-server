@@ -98,6 +98,7 @@ pub async fn run(pool: &SqlitePool) -> AppResult<()> {
         "INSERT OR IGNORE INTO global_config (key, value) VALUES ('admin_qq', '')",
         "INSERT OR IGNORE INTO global_config (key, value) VALUES ('admin_student_id', '')",
         "INSERT OR IGNORE INTO global_config (key, value) VALUES ('queue_paused', 'false')",
+        "INSERT OR IGNORE INTO global_config (key, value) VALUES ('submit_page_visits', '0')",
     ];
 
     for statement in statements {

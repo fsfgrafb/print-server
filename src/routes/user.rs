@@ -10,6 +10,7 @@ use crate::{app::AppState, auth::middleware::CurrentUser, error::AppResult, serv
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/user/quota", get(quota_info))
+        .route("/user/submit-stats", get(submit_stats))
         .route("/user/profile", post(update_profile))
         .route("/user/admin-contact", get(admin_contact))
 }
@@ -34,6 +35,44 @@ pub async fn quota_info(
         reserved,
         limit,
         remaining: (limit - used_today - reserved).max(0),
+    }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubmitStatsResponse {
+    pub visit_count: i64,
+    pub print_total_count: i64,
+}
+
+pub async fn submit_stats(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+) -> AppResult<Json<SubmitStatsResponse>> {
+    let mut tx = state.pool.begin().await?;
+    sqlx::query(
+        r#"
+        INSERT INTO global_config (key, value)
+        VALUES ('submit_page_visits', '1')
+        ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
+    let visit_count: i64 = sqlx::query_scalar(
+        "SELECT CAST(value AS INTEGER) FROM global_config WHERE key = 'submit_page_visits'",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let print_total_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM print_tasks WHERE status = 'done'")
+            .fetch_one(&state.pool)
+            .await?;
+
+    Ok(Json(SubmitStatsResponse {
+        visit_count,
+        print_total_count,
     }))
 }
 

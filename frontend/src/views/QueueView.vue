@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ChevronLeft, ChevronRight, Eye, Pause, Play, Search, X } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Download, Eye, Pause, Play, Search, X } from '@lucide/vue'
 import { api, unwrapError } from '../api'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { session } from '../session'
@@ -245,6 +245,9 @@ function rangeLabel(range) {
           <button v-if="task.preview_url" class="ghost-button" type="button" @click="previewTask = task">
             <Eye :size="18" /><span>预览</span>
           </button>
+          <a v-if="task.source_url" class="ghost-button source-download-button" :href="task.source_url" target="_blank" rel="noopener">
+            <Download :size="18" /><span>下载</span>
+          </a>
           <button
             v-if="(isAdmin && ['queued', 'printing', 'pending_review'].includes(task.status)) || (task.mine && ['queued', 'pending_review'].includes(task.status))"
             class="ghost-button danger-text"

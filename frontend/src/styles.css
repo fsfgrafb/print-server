@@ -225,7 +225,7 @@ button:disabled {
   background-size: 140% 140%, 150% 150%, 130% 130%, auto;
   cursor: pointer;
   transition: border-color 160ms ease, box-shadow 160ms ease;
-  animation: dropzoneGlow 18s ease-in-out infinite alternate;
+  animation: dropzoneGlow 4.8s ease-in-out infinite alternate;
 }
 
 .submit-dropzone > * {
@@ -233,13 +233,9 @@ button:disabled {
   z-index: 1;
 }
 
-.submit-dropzone:hover {
-  box-shadow: 0 14px 46px rgba(22, 103, 183, 0.16), 0 0 70px rgba(22, 103, 183, 0.18);
-}
-
 .submit-dropzone.dragging {
   border-color: #1667b7;
-  box-shadow: 0 16px 48px rgba(22, 103, 183, 0.2), 0 0 0 4px rgba(22, 103, 183, 0.08);
+  box-shadow: 0 10px 28px rgba(22, 103, 183, 0.18), 0 0 0 3px rgba(22, 103, 183, 0.08);
 }
 
 .submit-dropzone strong {
@@ -515,35 +511,10 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
-.page-drop-overlay {
-  position: fixed;
-  z-index: 90;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 12px;
-  color: #0f5ea8;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72) 34%, rgba(232, 244, 255, 0.9) 70%),
-    radial-gradient(circle at 28% 30%, rgba(76, 154, 224, 0.22), transparent 34%),
-    radial-gradient(circle at 72% 70%, rgba(89, 191, 164, 0.22), transparent 38%);
-  border: 4px dashed rgba(22, 103, 183, 0.5);
-  pointer-events: none;
-}
-
-.page-drop-overlay strong {
-  font-size: 32px;
-}
-
-.page-drop-overlay span {
-  color: #526075;
-}
-
 @keyframes dropzoneGlow {
   0% { background-position: 0% 0%, 100% 12%, 48% 100%, 0 0; }
-  50% { background-position: 18% 16%, 82% 0%, 64% 86%, 0 0; }
-  100% { background-position: 6% 28%, 92% 22%, 42% 76%, 0 0; }
+  50% { background-position: 42% 34%, 52% 0%, 86% 54%, 0 0; }
+  100% { background-position: 10% 68%, 92% 62%, 18% 36%, 0 0; }
 }
 
 .list-card,
@@ -688,6 +659,7 @@ button:disabled {
   color: #344055;
   background: #ffffff;
   border-color: #d8dee9;
+  text-decoration: none;
 }
 
 .icon-button {

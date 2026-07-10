@@ -61,6 +61,7 @@ pub struct QueueTaskView {
     pub submitted_ip: Option<String>,
     pub windows_job_id: Option<i64>,
     pub preview_url: Option<String>,
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -200,5 +201,7 @@ pub fn to_view(row: QueueRow, user: &User) -> QueueTaskView {
         windows_job_id: row.windows_job_id,
         preview_url: (row.preview_available && can_see_file)
             .then(|| format!("/api/print/tasks/{}/preview", row.id)),
+        source_url: (row.preview_available && can_see_file)
+            .then(|| format!("/api/print/tasks/{}/source", row.id)),
     }
 }

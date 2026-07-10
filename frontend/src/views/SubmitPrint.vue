@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 const router = useRouter()
 const quota = ref({ used_today: 0, reserved: 0, limit: 50, remaining: 50 })
 const quotaLoaded = ref(false)
+const submitStats = ref({ visit_count: 0, print_total_count: 0 })
 const adminContact = ref({ student_id: '', qq: '' })
 const uploads = ref([])
 const previewItem = ref(null)
@@ -39,31 +40,25 @@ const quotaPendingWidth = computed(() => {
 onMounted(() => {
   load()
   window.addEventListener('keydown', closeOnEscape)
-  window.addEventListener('dragenter', handleWindowDragEnter)
-  window.addEventListener('dragover', handleWindowDragOver)
-  window.addEventListener('dragleave', handleWindowDragLeave)
-  window.addEventListener('drop', handleWindowDrop)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', closeOnEscape)
-  window.removeEventListener('dragenter', handleWindowDragEnter)
-  window.removeEventListener('dragover', handleWindowDragOver)
-  window.removeEventListener('dragleave', handleWindowDragLeave)
-  window.removeEventListener('drop', handleWindowDrop)
   uploads.value.forEach(item => item.controller?.abort())
 })
 
 async function load() {
   try {
-    const [quotaRes, contactRes, uploadsRes] = await Promise.all([
+    const [quotaRes, contactRes, uploadsRes, statsRes] = await Promise.all([
       api.get('/user/quota'),
       api.get('/user/admin-contact'),
-      api.get('/print/uploads')
+      api.get('/print/uploads'),
+      api.get('/user/submit-stats')
     ])
     quota.value = quotaRes.data
     quotaLoaded.value = true
     adminContact.value = contactRes.data
+    submitStats.value = statsRes.data
     restoreUploads(uploadsRes.data.files || [])
   } catch (err) {
     error.value = unwrapError(err)
@@ -100,28 +95,28 @@ function hasDraggedFiles(event) {
   return Array.from(event.dataTransfer?.types || []).includes('Files')
 }
 
-function handleWindowDragEnter(event) {
+function handleDropzoneDragEnter(event) {
   if (!hasDraggedFiles(event)) return
   event.preventDefault()
   dragDepth += 1
   dragging.value = true
 }
 
-function handleWindowDragOver(event) {
+function handleDropzoneDragOver(event) {
   if (!hasDraggedFiles(event)) return
   event.preventDefault()
   event.dataTransfer.dropEffect = 'copy'
   dragging.value = true
 }
 
-function handleWindowDragLeave(event) {
+function handleDropzoneDragLeave(event) {
   if (!hasDraggedFiles(event)) return
   event.preventDefault()
   dragDepth = Math.max(0, dragDepth - 1)
   if (dragDepth === 0) dragging.value = false
 }
 
-function handleWindowDrop(event) {
+function handleDropzoneDrop(event) {
   if (!hasDraggedFiles(event)) return
   event.preventDefault()
   dragDepth = 0
@@ -245,6 +240,7 @@ async function performSubmit() {
     <header class="page-header">
       <div>
         <h1>提交打印</h1>
+        <p>访问 {{ submitStats.visit_count }} 次 · 已完成打印 {{ submitStats.print_total_count }} 次</p>
       </div>
       <button class="primary-button" type="button" :disabled="!canSubmit" @click="submit">
         <LoaderCircle v-if="submitting" class="spin" :size="18" />
@@ -262,6 +258,10 @@ async function performSubmit() {
       <label
         class="dropzone submit-dropzone"
         :class="{ dragging }"
+        @dragenter="handleDropzoneDragEnter"
+        @dragover="handleDropzoneDragOver"
+        @dragleave="handleDropzoneDragLeave"
+        @drop="handleDropzoneDrop"
       >
         <span class="dropzone-icon"><UploadCloud :size="48" /></span>
         <strong>拖拽文件到这里</strong>
@@ -332,12 +332,6 @@ async function performSubmit() {
         <p v-if="message" class="ok-text">{{ message }}</p>
         <p v-if="error" class="error-text">{{ error }}</p>
       </aside>
-    </div>
-
-    <div v-if="dragging" class="page-drop-overlay" aria-hidden="true">
-      <UploadCloud :size="64" />
-      <strong>松手即可提交文件</strong>
-      <span>整个页面都是拖放区</span>
     </div>
 
     <div v-if="previewItem" class="preview-modal" role="dialog" aria-modal="true" @click.self="previewItem = null">
