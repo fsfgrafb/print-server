@@ -10,7 +10,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::{fs, io::AsyncWriteExt};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -64,11 +64,13 @@ pub async fn upload(
         let stored_path = utils::upload_dir(&state.config).join(format!("{temp_id}_{safe_name}"));
         let preview_path = utils::preview_dir(&state.config).join(format!("{temp_id}.pdf"));
 
+        info!(%temp_id, file_name = %original_name, "receiving uploaded file");
         let mut output = fs::File::create(&stored_path).await?;
         while let Some(chunk) = field.chunk().await? {
             output.write_all(&chunk).await?;
         }
         output.flush().await?;
+        info!(%temp_id, path = %stored_path.display(), "uploaded file saved");
 
         let page_count =
             match converter::prepare_preview(&state.config, &stored_path, &preview_path).await {
@@ -79,6 +81,7 @@ pub async fn upload(
                     return Err(error);
                 }
             };
+        info!(%temp_id, page_count, preview = %preview_path.display(), "preview ready");
         sqlx::query(
             r#"
             INSERT INTO temp_uploads (temp_id, user_id, original_name, stored_path, preview_path, page_count)

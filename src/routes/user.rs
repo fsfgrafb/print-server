@@ -5,12 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    app::AppState,
-    auth::middleware::CurrentUser,
-    error::AppResult,
-    services::{quota, settings},
-};
+use crate::{app::AppState, auth::middleware::CurrentUser, error::AppResult, services::quota};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -68,7 +63,14 @@ pub struct AdminContactResponse {
 }
 
 pub async fn admin_contact(State(state): State<AppState>) -> AppResult<Json<AdminContactResponse>> {
-    let student_id = settings::get_or(&state.pool, "admin_student_id", "").await?;
-    let qq = settings::get_or(&state.pool, "admin_qq", "").await?;
-    Ok(Json(AdminContactResponse { student_id, qq }))
+    let row = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT student_id, qq FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1",
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+    let (student_id, qq) = row.unwrap_or_else(|| (String::new(), None));
+    Ok(Json(AdminContactResponse {
+        student_id,
+        qq: qq.unwrap_or_default(),
+    }))
 }

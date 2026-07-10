@@ -12,7 +12,8 @@ const total = ref(0)
 const mineOnly = ref(false)
 const studentId = ref('')
 const paused = ref(false)
-const printer = ref({ status: 'starting', queue_name: '', blocked: true, blocking_reasons: [], warnings: [] })
+const loaded = ref(false)
+const printer = ref({ status: 'starting', queue_name: '', available: false, blocked: false, blocking_reasons: [], warnings: [] })
 const previewTask = ref(null)
 const pendingAction = ref(null)
 const actionValue = ref('')
@@ -81,9 +82,11 @@ async function load() {
     total.value = data.total
     paused.value = data.paused
     printer.value = data.printer
+    loaded.value = true
     error.value = ''
   } catch (err) {
     error.value = unwrapError(err)
+    loaded.value = true
   }
 }
 
@@ -203,7 +206,7 @@ function rangeLabel(range) {
       </div>
     </header>
 
-    <section class="printer-card">
+    <section v-if="loaded" class="printer-card">
       <div class="printer-identity">
         <span class="printer-state-pill" :class="printerDisplay.tone">{{ printerDisplay.label }}</span>
         <div>
@@ -214,10 +217,21 @@ function rangeLabel(range) {
       <span class="printer-raw-status">驱动状态：{{ printer.status || '-' }}</span>
     </section>
 
-    <div v-if="printer.blocked" class="alert-banner danger">
+    <div v-else class="printer-card">
+      <div class="printer-identity">
+        <span class="printer-state-pill paused">Loading</span>
+        <div>
+          <strong>正在读取打印机状态</strong>
+          <span>请稍候</span>
+        </div>
+      </div>
+      <span class="printer-raw-status">驱动状态：-</span>
+    </div>
+
+    <div v-if="loaded && printer.blocked" class="alert-banner danger">
       打印机暂时阻塞：{{ printer.blocking_reasons.join('；') }}。故障清除后会自动继续。
     </div>
-    <div v-if="printer.warnings?.length && (!printer.toner_alert_acknowledged || !isAdmin)" class="alert-banner warning">
+    <div v-if="loaded && printer.warnings?.length && (!printer.toner_alert_acknowledged || !isAdmin)" class="alert-banner warning">
       <span>{{ printer.warnings.join('；') }}</span>
       <button v-if="isAdmin" class="ghost-button" type="button" @click="acknowledgeToner">确认提示</button>
     </div>

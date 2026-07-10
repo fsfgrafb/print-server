@@ -213,7 +213,6 @@ async function performSubmit() {
             <span class="quota-pending-segment" :style="{ width: `${quotaPendingWidth}%` }"></span>
           </div>
           <div class="quota-legend">
-            <span><i class="remaining-dot"></i>可用额度</span>
             <span v-if="projectedPages"><i class="pending-dot"></i>本次文件 {{ projectedPages }} 页</span>
           </div>
         </div>
@@ -234,7 +233,7 @@ async function performSubmit() {
               </button>
               <div class="file-details">
                 <strong :title="file.original_name">{{ file.original_name }}</strong>
-                <span v-if="file.status === 'loading'">正在上传并生成黑白预览…</span>
+                <span v-if="file.status === 'loading'">正在上传并生成预览…</span>
                 <span v-else-if="file.status === 'error'" class="danger-text" :title="file.error">{{ file.error }}</span>
                 <span v-else>{{ file.page_count }} 页 · 实际打印 {{ selectedPages(file) }} 页</span>
               </div>

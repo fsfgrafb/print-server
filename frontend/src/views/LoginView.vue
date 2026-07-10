@@ -36,7 +36,6 @@ async function login() {
         <Printer :size="32" />
         <div>
           <h1>ACM 实验室自助打印平台</h1>
-          <p>内网打印队列与限额管理</p>
         </div>
       </div>
 

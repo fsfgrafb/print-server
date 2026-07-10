@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { KeyRound, Send, Trash2, Upload } from '@lucide/vue'
+import { KeyRound, Plus, Send, Trash2, Upload } from '@lucide/vue'
 import { api, unwrapError } from '../api'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { refreshSession, session } from '../session'
@@ -12,6 +12,8 @@ const file = ref(null)
 const result = ref(null)
 const pendingAction = ref(null)
 const transferStudentId = ref('')
+const showAddUser = ref(false)
+const newStudentId = ref('')
 const busy = ref(false)
 const error = ref('')
 const router = useRouter()
@@ -40,6 +42,23 @@ async function importUsers() {
     await load()
   } catch (err) {
     error.value = unwrapError(err)
+  }
+}
+
+async function createUser() {
+  const studentId = newStudentId.value.trim()
+  if (!studentId) return
+  busy.value = true
+  error.value = ''
+  try {
+    await api.post('/admin/users', { student_id: studentId })
+    newStudentId.value = ''
+    showAddUser.value = false
+    await load()
+  } catch (err) {
+    error.value = unwrapError(err)
+  } finally {
+    busy.value = false
   }
 }
 
@@ -79,6 +98,10 @@ async function confirmAction() {
     busy.value = false
   }
 }
+
+function roleLabel(user) {
+  return user.must_change_password ? 'unregistered' : user.role
+}
 </script>
 
 <template>
@@ -89,6 +112,10 @@ async function confirmAction() {
         <p>共 {{ total }} 个账号</p>
       </div>
       <div class="button-row">
+        <button class="ghost-button" type="button" @click="showAddUser = !showAddUser">
+          <Plus :size="18" />
+          <span>添加用户</span>
+        </button>
         <label class="file-button">
           <Upload :size="18" />
           <span>{{ file ? file.name : '选择导入文件' }}</span>
@@ -101,16 +128,29 @@ async function confirmAction() {
     <p v-if="result" class="ok-text">新增 {{ result.created.length }} 人，跳过 {{ result.skipped.length }} 人</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
+    <section v-if="showAddUser" class="panel form-grid">
+      <label>
+        学号
+        <input v-model.trim="newStudentId" autocomplete="off" @keyup.enter="createUser" />
+      </label>
+      <div class="button-row">
+        <button class="primary-button" type="button" :disabled="busy || !newStudentId.trim()" @click="createUser">
+          <Plus :size="18" />
+          <span>添加用户</span>
+        </button>
+        <button class="ghost-button" type="button" :disabled="busy" @click="showAddUser = false">取消</button>
+      </div>
+    </section>
+
     <table class="data-table">
       <thead>
-        <tr><th>学号</th><th>角色</th><th>QQ</th><th>首次改密</th><th></th></tr>
+        <tr><th>学号</th><th>角色</th><th>QQ</th><th></th></tr>
       </thead>
       <tbody>
         <tr v-for="user in users" :key="user.id">
           <td>{{ user.student_id }}</td>
-          <td>{{ user.role }}</td>
+          <td>{{ roleLabel(user) }}</td>
           <td>{{ user.qq || '-' }}</td>
-          <td>{{ user.must_change_password ? '是' : '否' }}</td>
           <td class="row-actions">
             <button class="icon-button" type="button" title="重置为学号密码" @click="requestAction('reset', user)">
               <KeyRound :size="18" />

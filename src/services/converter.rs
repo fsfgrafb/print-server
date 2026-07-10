@@ -4,6 +4,7 @@ use tokio::{
     fs, task,
     time::{timeout, Duration},
 };
+use tracing::info;
 
 use crate::{
     config::Config,
@@ -16,8 +17,9 @@ pub async fn prepare_preview(config: &Config, source: &Path, preview_pdf: &Path)
     }
 
     if is_pdf(source) {
+        info!(source = %source.display(), preview = %preview_pdf.display(), "copying uploaded PDF for preview");
         fs::copy(source, preview_pdf).await?;
-        return count_pdf_pages_async(preview_pdf).await;
+        return count_pdf_pages_async(config, preview_pdf).await;
     }
 
     ensure_supported(source)?;
@@ -29,8 +31,9 @@ pub async fn prepare_preview(config: &Config, source: &Path, preview_pdf: &Path)
                 .to_string(),
         ));
     }
+    info!(source = %source.display(), preview = %preview_pdf.display(), "running document converter");
     run_external_converter(config, source, preview_pdf).await?;
-    count_pdf_pages_async(preview_pdf).await
+    count_pdf_pages_async(config, preview_pdf).await
 }
 
 fn is_pdf(path: &Path) -> bool {
@@ -51,11 +54,15 @@ fn count_pdf_pages(path: &Path) -> AppResult<i64> {
     }
 }
 
-async fn count_pdf_pages_async(path: &Path) -> AppResult<i64> {
+async fn count_pdf_pages_async(config: &Config, path: &Path) -> AppResult<i64> {
     let path = path.to_path_buf();
-    task::spawn_blocking(move || count_pdf_pages(&path))
-        .await
-        .map_err(|error| AppError::External(format!("PDF inspection task failed: {error}")))?
+    timeout(
+        Duration::from_secs(config.converter.command_timeout_seconds.max(5)),
+        task::spawn_blocking(move || count_pdf_pages(&path)),
+    )
+    .await
+    .map_err(|_| AppError::External("PDF inspection timed out".to_string()))?
+    .map_err(|error| AppError::External(format!("PDF inspection task failed: {error}")))?
 }
 
 fn ensure_supported(path: &Path) -> AppResult<()> {

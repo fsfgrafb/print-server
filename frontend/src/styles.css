@@ -195,13 +195,11 @@ button:disabled {
   border-width: 2px;
   background: linear-gradient(145deg, #f8fbff, #eef7ff);
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: box-shadow 160ms ease, transform 160ms ease;
 }
 
 .submit-dropzone:hover {
-  border-color: #4b91d5;
-  background: #f2f8ff;
-  box-shadow: 0 0 24px rgba(22, 103, 183, 0.16), inset 0 0 18px rgba(75, 145, 213, 0.08);
+  box-shadow: 0 0 0 5px rgba(22, 103, 183, 0.14), 0 0 24px rgba(22, 103, 183, 0.16);
 }
 
 .submit-dropzone.dragging {

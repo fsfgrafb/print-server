@@ -24,7 +24,7 @@ use crate::{
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/admin/users", get(users))
+        .route("/admin/users", get(users).post(create_user))
         .route("/admin/users/import", post(import_users))
         .route("/admin/users/:user_id", delete(delete_user))
         .route("/admin/users/:user_id/reset-password", post(reset_password))
@@ -39,6 +39,51 @@ pub fn router() -> Router<AppState> {
         .route("/admin/config", get(get_config).put(update_config))
         .route("/admin/printer/ack-toner", post(ack_toner))
         .route("/admin/transfer", post(transfer_admin))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreateUserRequest {
+    pub student_id: String,
+}
+
+pub async fn create_user(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(request): Json<CreateUserRequest>,
+) -> AppResult<Json<UserView>> {
+    ensure_admin(&user)?;
+    let student_id = request.student_id.trim();
+    if student_id.is_empty() {
+        return Err(AppError::BadRequest(
+            "student_id cannot be empty".to_string(),
+        ));
+    }
+
+    let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE student_id = ?")
+        .bind(student_id)
+        .fetch_one(&state.pool)
+        .await?;
+    if exists > 0 {
+        return Err(AppError::Conflict("user already exists".to_string()));
+    }
+
+    let hash = session::hash_password(student_id)?;
+    let result = sqlx::query(
+        "INSERT INTO users (student_id, password_hash, role, must_change_password) VALUES (?, ?, 'user', 1)",
+    )
+    .bind(student_id)
+    .bind(hash)
+    .execute(&state.pool)
+    .await?;
+    let created = sqlx::query_as::<_, User>(
+        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at FROM users WHERE id = ?",
+    )
+    .bind(result.last_insert_rowid())
+    .fetch_one(&state.pool)
+    .await?;
+
+    audit::log(&state.pool, Some(user.id), "admin.users.create", &request).await?;
+    Ok(Json(created.into()))
 }
 
 #[derive(Debug, Serialize)]
@@ -492,8 +537,6 @@ fn csv_cell(value: &str) -> String {
 #[derive(Debug, Serialize)]
 pub struct ConfigResponse {
     pub daily_limit: String,
-    pub admin_qq: String,
-    pub admin_student_id: String,
     pub queue_paused: bool,
     pub printer: crate::services::printer::PrinterState,
 }
@@ -505,8 +548,6 @@ pub async fn get_config(
     ensure_admin(&user)?;
     Ok(Json(ConfigResponse {
         daily_limit: settings::get_or(&state.pool, "daily_limit", "50").await?,
-        admin_qq: settings::get_or(&state.pool, "admin_qq", "").await?,
-        admin_student_id: settings::get_or(&state.pool, "admin_student_id", "").await?,
         queue_paused: settings::queue_paused(&state.pool).await?,
         printer: state.printer_state.read().await.clone(),
     }))
@@ -541,9 +582,6 @@ pub async fn update_config(
                 .parse::<i64>()
                 .map_err(|_| AppError::BadRequest("daily_limit must be a number".to_string()))?;
             settings::set(&state.pool, "daily_limit", &limit.max(0).to_string()).await?;
-        }
-        "admin_qq" | "admin_student_id" => {
-            settings::set(&state.pool, &request.key, request.value.trim()).await?;
         }
         _ => {
             return Err(AppError::BadRequest("unsupported config key".to_string()));
@@ -611,10 +649,6 @@ pub async fn transfer_admin(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    settings::set(&state.pool, "admin_student_id", &new_admin.student_id).await?;
-    if let Some(qq) = new_admin.qq.as_deref() {
-        settings::set(&state.pool, "admin_qq", qq).await?;
-    }
 
     audit::log(
         &state.pool,
