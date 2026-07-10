@@ -17,7 +17,7 @@ simulate = false
 command_timeout_seconds = 60
 backend_script = "scripts/printer-backend.ps1"
 job_discovery_seconds = 20
-# 留空时自动查找 tools/SumatraPDF.exe、系统安装的 SumatraPDF 或 Adobe Reader。
+# 留空时自动查找系统安装的 SumatraPDF、Adobe Reader，或本机自备的 tools/SumatraPDF.exe。
 pdf_printer_path = ""
 
 [converter]

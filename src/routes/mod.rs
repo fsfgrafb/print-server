@@ -1,21 +1,22 @@
 pub mod admin;
-pub mod health;
 pub mod print;
 pub mod queue;
 pub mod user;
 
 use axum::{
-    extract::DefaultBodyLimit,
+    extract::{DefaultBodyLimit, State},
     response::Html,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
+use serde::Serialize;
 use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 
 use crate::{
     app::AppState,
     auth,
     error::{AppError, AppResult},
+    services::{printer::PrinterState, settings},
     ws,
 };
 
@@ -26,7 +27,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/me", get(auth::login::me))
         .route("/auth/change-password", post(auth::login::change_password))
         .route("/ws/queue", get(ws::queue_ws))
-        .merge(health::router())
+        .merge(health_router())
         .merge(user::router())
         .merge(print::router())
         .merge(queue::router())
@@ -62,4 +63,31 @@ async fn spa_index() -> AppResult<Html<String>> {
 
 async fn api_not_found() -> AppError {
     AppError::NotFound("api endpoint not found".to_string())
+}
+
+fn health_router() -> Router<AppState> {
+    Router::new().route("/health", get(health))
+}
+
+#[derive(Debug, Serialize)]
+struct HealthResponse {
+    ok: bool,
+    version: &'static str,
+    database: &'static str,
+    queue_paused: bool,
+    printer: PrinterState,
+}
+
+async fn health(State(state): State<AppState>) -> AppResult<Json<HealthResponse>> {
+    sqlx::query_scalar::<_, i64>("SELECT 1")
+        .fetch_one(&state.pool)
+        .await?;
+
+    Ok(Json(HealthResponse {
+        ok: true,
+        version: env!("CARGO_PKG_VERSION"),
+        database: "ok",
+        queue_paused: settings::queue_paused(&state.pool).await?,
+        printer: state.printer_state.read().await.clone(),
+    }))
 }

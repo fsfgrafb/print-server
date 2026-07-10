@@ -17,6 +17,7 @@ const message = ref('')
 const error = ref('')
 const showOverLimitConfirm = ref(false)
 let localId = 0
+let dragDepth = 0
 
 const readyUploads = computed(() => uploads.value.filter(item => item.status === 'ready'))
 const isConverting = computed(() => uploads.value.some(item => item.status === 'loading'))
@@ -38,10 +39,18 @@ const quotaPendingWidth = computed(() => {
 onMounted(() => {
   load()
   window.addEventListener('keydown', closeOnEscape)
+  window.addEventListener('dragenter', handleWindowDragEnter)
+  window.addEventListener('dragover', handleWindowDragOver)
+  window.addEventListener('dragleave', handleWindowDragLeave)
+  window.addEventListener('drop', handleWindowDrop)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', closeOnEscape)
+  window.removeEventListener('dragenter', handleWindowDragEnter)
+  window.removeEventListener('dragover', handleWindowDragOver)
+  window.removeEventListener('dragleave', handleWindowDragLeave)
+  window.removeEventListener('drop', handleWindowDrop)
   uploads.value.forEach(item => item.controller?.abort())
 })
 
@@ -87,7 +96,35 @@ function pickFiles(event) {
   event.target.value = ''
 }
 
-function dropFiles(event) {
+function hasDraggedFiles(event) {
+  return Array.from(event.dataTransfer?.types || []).includes('Files')
+}
+
+function handleWindowDragEnter(event) {
+  if (!hasDraggedFiles(event)) return
+  event.preventDefault()
+  dragDepth += 1
+  dragging.value = true
+}
+
+function handleWindowDragOver(event) {
+  if (!hasDraggedFiles(event)) return
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'copy'
+  dragging.value = true
+}
+
+function handleWindowDragLeave(event) {
+  if (!hasDraggedFiles(event)) return
+  event.preventDefault()
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) dragging.value = false
+}
+
+function handleWindowDrop(event) {
+  if (!hasDraggedFiles(event)) return
+  event.preventDefault()
+  dragDepth = 0
   dragging.value = false
   addFiles(event.dataTransfer.files)
 }
@@ -225,10 +262,6 @@ async function performSubmit() {
       <label
         class="dropzone submit-dropzone"
         :class="{ dragging }"
-        @drop.prevent="dropFiles"
-        @dragenter.prevent="dragging = true"
-        @dragleave.prevent="dragging = false"
-        @dragover.prevent
       >
         <span class="dropzone-icon"><UploadCloud :size="48" /></span>
         <strong>拖拽文件到这里</strong>
@@ -299,6 +332,12 @@ async function performSubmit() {
         <p v-if="message" class="ok-text">{{ message }}</p>
         <p v-if="error" class="error-text">{{ error }}</p>
       </aside>
+    </div>
+
+    <div v-if="dragging" class="page-drop-overlay" aria-hidden="true">
+      <UploadCloud :size="64" />
+      <strong>松手即可提交文件</strong>
+      <span>整个页面都是拖放区</span>
     </div>
 
     <div v-if="previewItem" class="preview-modal" role="dialog" aria-modal="true" @click.self="previewItem = null">

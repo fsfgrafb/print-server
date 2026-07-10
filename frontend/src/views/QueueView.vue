@@ -23,6 +23,7 @@ let timer = null
 let socket = null
 let reconnectTimer = null
 let stopped = false
+const hiddenFileNameLabel = '打印任务'
 
 const isAdmin = computed(() => session.user?.role === 'admin')
 const printerDisplay = computed(() => {
@@ -231,7 +232,7 @@ function rangeLabel(range) {
             </div>
             <span class="status-pill" :class="task.status">{{ statusLabel(task.status) }}</span>
           </div>
-          <h2>{{ task.file_name_visible ? (task.file_name || `打印任务 ${task.id}`) : '无权限查看文件名' }}</h2>
+          <h2>{{ task.file_name_visible ? (task.file_name || `打印任务 ${task.id}`) : hiddenFileNameLabel }}</h2>
           <p>
             {{ task.page_count }} 页 · {{ rangeLabel(task.odd_even) }}
             <template v-if="task.owner_name"> · {{ task.owner_name }}</template>
@@ -281,7 +282,7 @@ function rangeLabel(range) {
     <ConfirmDialog
       v-if="pendingAction"
       title="取消打印任务"
-      :message="`任务 #${pendingAction.task.id} · ${pendingAction.task.file_name_visible ? (pendingAction.task.file_name || '未命名文件') : '无权限查看文件名'}`"
+      :message="`任务 #${pendingAction.task.id} · ${pendingAction.task.file_name_visible ? (pendingAction.task.file_name || '未命名文件') : hiddenFileNameLabel}`"
       confirm-text="确认取消"
       :danger="true"
       :input-label="isAdmin ? '取消原因（可选）' : ''"

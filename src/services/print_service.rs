@@ -10,6 +10,8 @@ use crate::{
     error::{AppError, AppResult},
 };
 
+const TASK_COLUMNS: &str = "id, user_id, file_name, stored_path, preview_path, page_count, odd_even, status, submitted_at, completed_at, cancelled_by, review_reason, approved_over_quota, windows_job_id, windows_job_name, printer_submitted_at, job_seen_at, status_detail";
+
 pub fn selected_page_count(total: i64, odd_even: &str) -> AppResult<i64> {
     let total = total.max(1);
     let selected = match odd_even {
@@ -111,19 +113,7 @@ pub async fn cancel_task(
     actor: &User,
     reason: Option<String>,
 ) -> AppResult<PrintTask> {
-    let task = sqlx::query_as::<_, PrintTask>(
-        r#"
-        SELECT id, user_id, file_name, stored_path, preview_path, page_count, odd_even,
-               status, submitted_at, completed_at, cancelled_by, review_reason, approved_over_quota,
-               windows_job_id, windows_job_name, printer_submitted_at, job_seen_at, status_detail
-        FROM print_tasks
-        WHERE id = ?
-        "#,
-    )
-    .bind(task_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("task not found".to_string()))?;
+    let task = load_task(pool, task_id).await?;
 
     if !actor.is_admin() && task.user_id != actor.id {
         return Err(AppError::Forbidden);
@@ -150,20 +140,16 @@ pub async fn cancel_task(
     .execute(pool)
     .await?;
 
-    let updated = sqlx::query_as::<_, PrintTask>(
-        r#"
-        SELECT id, user_id, file_name, stored_path, preview_path, page_count, odd_even,
-               status, submitted_at, completed_at, cancelled_by, review_reason, approved_over_quota,
-               windows_job_id, windows_job_name, printer_submitted_at, job_seen_at, status_detail
-        FROM print_tasks
-        WHERE id = ?
-        "#,
-    )
-    .bind(task_id)
-    .fetch_one(pool)
-    .await?;
+    load_task(pool, task_id).await
+}
 
-    Ok(updated)
+pub async fn load_task(pool: &SqlitePool, task_id: i64) -> AppResult<PrintTask> {
+    let query = format!("SELECT {TASK_COLUMNS} FROM print_tasks WHERE id = ?");
+    sqlx::query_as::<_, PrintTask>(&query)
+        .bind(task_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("task not found".to_string()))
 }
 
 #[cfg(test)]

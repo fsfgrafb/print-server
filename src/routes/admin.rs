@@ -321,7 +321,7 @@ pub async fn cancel_task(
     ensure_admin(&user)?;
     let _queue_guard = state.queue_lock.lock().await;
     let reason = body.and_then(|Json(body)| body.reason);
-    let current = load_task(&state.pool, task_id).await?;
+    let current = print_service::load_task(&state.pool, task_id).await?;
     let task = if current.status == "printing" {
         let job_id = current.windows_job_id.ok_or_else(|| {
             AppError::Conflict(
@@ -336,24 +336,13 @@ pub async fn cancel_task(
                 let _ = fs::remove_file(parent.join(format!("print-task-{task_id}.pdf"))).await;
             }
         }
-        load_task(&state.pool, task_id).await?
+        print_service::load_task(&state.pool, task_id).await?
     } else {
         print_service::cancel_task(&state.pool, task_id, &user, reason).await?
     };
     audit::log(&state.pool, Some(user.id), "admin.tasks.cancel", &task).await?;
     state.broadcaster.send(QueueEvent::QueueChanged);
     Ok(Json(task))
-}
-
-async fn load_task(pool: &sqlx::SqlitePool, task_id: i64) -> AppResult<PrintTask> {
-    sqlx::query_as::<_, PrintTask>(
-        r#"SELECT id, user_id, file_name, stored_path, preview_path, page_count, odd_even,
-                  status, submitted_at, completed_at, cancelled_by, review_reason, approved_over_quota,
-                  windows_job_id, windows_job_name, printer_submitted_at, job_seen_at, status_detail
-           FROM print_tasks WHERE id = ?"#,
-    )
-    .bind(task_id).fetch_optional(pool).await?
-    .ok_or_else(|| AppError::NotFound("task not found".to_string()))
 }
 
 pub async fn review_tasks(

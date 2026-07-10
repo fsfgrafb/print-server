@@ -82,7 +82,7 @@ frontend/vite.config.js
 frontend/src/
 ```
 
-如果使用便携版 SumatraPDF，再复制 `tools/SumatraPDF.exe`。`README.md` 和 `docs/` 只用于部署参考，不参与构建。
+`README.md` 和 `docs/` 只用于部署参考，不参与构建。仓库只保留源代码和配置示例，不再提交 PDF 阅读器 exe；生产机请系统安装 SumatraPDF/Adobe Reader，或在本机自行放置未入库的 `tools/SumatraPDF.exe` 并通过 `printer.pdf_printer_path` 指定。
 
 以下内容不要复制；它们会在构建、安装依赖或首次运行时重新产生：
 
@@ -92,6 +92,7 @@ frontend/node_modules/
 frontend/dist/
 data/
 frontend/data/
+tools/*.exe
 .git/
 ```
 
@@ -216,7 +217,7 @@ http://127.0.0.1
 1. 使用学号和密码登录。
 2. 首次登录后先修改密码。
 3. 进入“提交打印”。
-4. 拖拽或点击上传文件。
+4. 拖拽文件到浏览器任意位置松手，或点击上传区选择文件。
 5. 等待系统生成 PDF 预览。
 6. 选择打印范围：全部、奇数页、偶数页。
 7. 点击“提交”。
@@ -317,7 +318,7 @@ PDF 文件会直接复制为预览文件。
 
 真实打印：
 
-- `printer.simulate = false` 时，后端通过 `scripts/printer-backend.ps1` 调用 PDF 命令行打印器，并捕获新建的 Windows 作业 ID。后端会依次查找 `tools/SumatraPDF.exe`、系统安装的 SumatraPDF、Adobe Reader，最后才尝试系统 PDF `PrintTo` 关联。
+- `printer.simulate = false` 时，后端通过 `scripts/printer-backend.ps1` 调用 PDF 命令行打印器，并捕获新建的 Windows 作业 ID。后端会优先使用 `printer.pdf_printer_path`，再查找本机自备的 `tools/SumatraPDF.exe`、系统安装的 SumatraPDF、Adobe Reader，最后才尝试系统 PDF `PrintTo` 关联。
 - 调度器持续读取 `.NET System.Printing` 的具体状态和 PrintManagement 作业列表。缺纸、卡纸、脱机等状态会阻止提交后续任务，状态恢复后自动继续。
 - 打印任务只有在已观察到的 Windows 作业从队列中结束后才标为 `done`；页面文案使用“Windows 打印作业已结束”，不承诺已物理打印成功。
 - 墨粉不足仅向管理员告警，不阻塞队列；告警可确认，并在状态恢复后才允许下一次重新提示。
@@ -341,7 +342,7 @@ Windows 还可能返回 `Active`、`Processing`、`Busy`、`Initializing`、`Wai
 
 ## 完成情况与验收边界
 
-需求草案和早期后端结构草案已经合并进本 README、部署说明和现有实现，因此不再单独保留。目前业务接口、用户与管理员功能、额度审核、文件转换、持久化队列、打印机状态阻塞、作业跟踪、历史统计和清理任务均已实现。
+需求草案和早期后端结构草案已经合并进本 README、部署说明和现有实现，因此不再单独保留。目前业务接口、用户与管理员功能、额度审核、整页拖放上传、文件转换、持久化队列、打印机状态阻塞、作业跟踪、历史统计和清理任务均已实现。健康检查已合入路由入口，小型全局配置服务已内联到服务模块入口，避免为单一端点或薄封装保留额外源码文件。
 
 仍需在目标电脑完成以下部署验收，不能仅用编译通过代替：
 

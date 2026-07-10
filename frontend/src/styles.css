@@ -218,29 +218,14 @@ button:disabled {
   border-width: 2px;
   overflow: hidden;
   background:
-    linear-gradient(145deg, rgba(248, 251, 255, 0.84), rgba(238, 247, 255, 0.8)),
-    linear-gradient(120deg, #cce7ff, #dff7ee, #fff1c7, #ffdce5, #d8e8ff);
-  background-size: auto, 320% 320%;
+    radial-gradient(circle at 20% 22%, rgba(76, 154, 224, 0.2), transparent 34%),
+    radial-gradient(circle at 82% 24%, rgba(89, 191, 164, 0.2), transparent 32%),
+    radial-gradient(circle at 58% 78%, rgba(247, 201, 72, 0.18), transparent 36%),
+    linear-gradient(145deg, rgba(248, 251, 255, 0.92), rgba(238, 247, 255, 0.86));
+  background-size: 140% 140%, 150% 150%, 130% 130%, auto;
   cursor: pointer;
   transition: border-color 160ms ease, box-shadow 160ms ease;
-  animation: smartDropzoneFlow 8s ease-in-out infinite;
-}
-
-.submit-dropzone::before {
-  position: absolute;
-  inset: -35%;
-  background: linear-gradient(
-    115deg,
-    transparent 34%,
-    rgba(255, 255, 255, 0.2) 43%,
-    rgba(255, 255, 255, 0.84) 50%,
-    rgba(22, 103, 183, 0.18) 57%,
-    transparent 66%
-  );
-  transform: translateX(-42%);
-  content: "";
-  animation: dropzoneShine 3.4s linear infinite;
-  pointer-events: none;
+  animation: dropzoneGlow 18s ease-in-out infinite alternate;
 }
 
 .submit-dropzone > * {
@@ -530,15 +515,35 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
-@keyframes smartDropzoneFlow {
-  0% { background-position: 0 0, 0% 50%; }
-  50% { background-position: 0 0, 100% 50%; }
-  100% { background-position: 0 0, 0% 50%; }
+.page-drop-overlay {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: #0f5ea8;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72) 34%, rgba(232, 244, 255, 0.9) 70%),
+    radial-gradient(circle at 28% 30%, rgba(76, 154, 224, 0.22), transparent 34%),
+    radial-gradient(circle at 72% 70%, rgba(89, 191, 164, 0.22), transparent 38%);
+  border: 4px dashed rgba(22, 103, 183, 0.5);
+  pointer-events: none;
 }
 
-@keyframes dropzoneShine {
-  0% { transform: translateX(-46%); }
-  100% { transform: translateX(46%); }
+.page-drop-overlay strong {
+  font-size: 32px;
+}
+
+.page-drop-overlay span {
+  color: #526075;
+}
+
+@keyframes dropzoneGlow {
+  0% { background-position: 0% 0%, 100% 12%, 48% 100%, 0 0; }
+  50% { background-position: 18% 16%, 82% 0%, 64% 86%, 0 0; }
+  100% { background-position: 6% 28%, 92% 22%, 42% 76%, 0 0; }
 }
 
 .list-card,
