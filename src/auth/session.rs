@@ -65,7 +65,7 @@ pub async fn authenticate(
     let now = Utc::now().to_rfc3339();
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT u.id, u.student_id, u.password_hash, u.role, u.qq, u.must_change_password, u.created_at
+        SELECT u.id, u.student_id, u.password_hash, u.role, u.qq, u.must_change_password, u.created_at, u.last_login_at
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ? AND s.expires_at > ?
@@ -86,4 +86,12 @@ pub async fn authenticate(
     }
 
     Ok(user)
+}
+
+pub async fn delete_user_sessions(pool: &SqlitePool, user_id: i64) -> AppResult<()> {
+    sqlx::query("DELETE FROM sessions WHERE user_id = ?")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }

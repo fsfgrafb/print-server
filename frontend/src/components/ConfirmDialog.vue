@@ -9,6 +9,7 @@ defineProps({
   inputLabel: { type: String, default: '' },
   inputRequired: { type: Boolean, default: false },
   inputValue: { type: String, default: '' },
+  showCancel: { type: Boolean, default: true },
   busy: { type: Boolean, default: false }
 })
 
@@ -16,11 +17,11 @@ defineEmits(['confirm', 'cancel', 'update:inputValue'])
 </script>
 
 <template>
-  <div class="dialog-backdrop" role="presentation" @click.self="$emit('cancel')">
+  <div class="dialog-backdrop" role="presentation" @click.self="showCancel && $emit('cancel')">
     <section class="confirm-dialog" role="dialog" aria-modal="true" :aria-label="title">
       <header>
         <strong>{{ title }}</strong>
-        <button class="icon-button" type="button" title="关闭" :disabled="busy" @click="$emit('cancel')">
+        <button v-if="showCancel" class="icon-button" type="button" title="关闭" :disabled="busy" @click="$emit('cancel')">
           <X :size="18" />
         </button>
       </header>
@@ -35,7 +36,7 @@ defineEmits(['confirm', 'cancel', 'update:inputValue'])
         />
       </label>
       <footer>
-        <button class="ghost-button" type="button" :disabled="busy" @click="$emit('cancel')">取消</button>
+        <button v-if="showCancel" class="ghost-button" type="button" :disabled="busy" @click="$emit('cancel')">取消</button>
         <button
           class="primary-button"
           :class="{ 'dialog-danger-button': danger }"

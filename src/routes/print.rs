@@ -1,4 +1,9 @@
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
+use std::{
+    collections::HashSet,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{LazyLock, Mutex},
+};
 
 use axum::{
     body::Body,
@@ -8,6 +13,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use chrono::Local;
 use serde::{Deserialize, Serialize};
 use tokio::{fs, io::AsyncWriteExt};
 use tracing::{info, warn};
@@ -22,6 +28,9 @@ use crate::{
     utils,
     ws::QueueEvent,
 };
+
+static UPLOAD_SEQUENCE: LazyLock<Mutex<(String, u32)>> =
+    LazyLock::new(|| Mutex::new((String::new(), 0)));
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -89,9 +98,8 @@ pub async fn upload(
         }
 
         let original_name = field.file_name().unwrap_or("upload.bin").to_string();
-        let safe_name = utils::sanitize_filename(&original_name);
         let temp_id = Uuid::new_v4().to_string();
-        let stored_path = utils::upload_dir(&state.config).join(format!("{temp_id}_{safe_name}"));
+        let stored_path = next_dated_upload_path(&state.config, &original_name).await?;
         let preview_path = utils::preview_dir(&state.config).join(format!("{temp_id}.pdf"));
 
         info!(%temp_id, file_name = %original_name, "receiving uploaded file");
@@ -176,15 +184,19 @@ pub async fn preview(
 
 pub async fn task_preview(
     State(state): State<AppState>,
-    CurrentUser(_user): CurrentUser,
+    CurrentUser(user): CurrentUser,
     Path(task_id): Path<i64>,
 ) -> AppResult<Response> {
-    let preview_path: Option<String> =
-        sqlx::query_scalar("SELECT preview_path FROM print_tasks WHERE id = ?")
+    let (owner_id, preview_path): (i64, Option<String>) =
+        sqlx::query_as("SELECT user_id, preview_path FROM print_tasks WHERE id = ?")
             .bind(task_id)
             .fetch_optional(&state.pool)
             .await?
             .ok_or_else(|| AppError::NotFound("print record not found".to_string()))?;
+
+    if !user.is_admin() && owner_id != user.id {
+        return Err(AppError::Forbidden);
+    }
 
     let path = preview_path
         .map(PathBuf::from)
@@ -478,4 +490,63 @@ fn request_ip(headers: &HeaderMap, peer: SocketAddr) -> String {
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| peer.ip().to_string())
+}
+
+async fn next_dated_upload_path(
+    config: &crate::config::Config,
+    original_name: &str,
+) -> AppResult<PathBuf> {
+    let extension = std::path::Path::new(original_name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(utils::sanitize_filename)
+        .filter(|ext| !ext.is_empty());
+    loop {
+        let stem = next_upload_stem();
+        let file_name = extension
+            .as_deref()
+            .map(|ext| format!("{stem}.{ext}"))
+            .unwrap_or(stem);
+        let path = utils::upload_dir(config).join(file_name);
+        if !upload_stem_exists(
+            config,
+            path.file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default(),
+        )
+        .await?
+        {
+            return Ok(path);
+        }
+    }
+}
+
+fn next_upload_stem() -> String {
+    let batch = Local::now().format("%y%m%d%H%M%S").to_string();
+    let mut sequence = UPLOAD_SEQUENCE
+        .lock()
+        .expect("upload sequence lock poisoned");
+    if sequence.0 == batch {
+        sequence.1 += 1;
+    } else {
+        sequence.0 = batch;
+        sequence.1 = 1;
+    }
+    format!("{}{:02}", sequence.0, sequence.1)
+}
+
+async fn upload_stem_exists(config: &crate::config::Config, stem: &str) -> AppResult<bool> {
+    let mut entries = fs::read_dir(utils::upload_dir(config)).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        if entry
+            .path()
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .map(|name| name == stem)
+            .unwrap_or(false)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

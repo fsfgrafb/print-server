@@ -182,6 +182,7 @@ pub async fn queue_rows(
 
 pub fn to_view(row: QueueRow, user: &User) -> QueueTaskView {
     let mine = row.user_id == user.id;
+    let can_see_file = user.is_admin() || mine;
     QueueTaskView {
         id: row.id,
         status: row.status,
@@ -191,14 +192,13 @@ pub fn to_view(row: QueueRow, user: &User) -> QueueTaskView {
         completed_at: row.completed_at,
         owner_name: Some(row.student_id),
         mine,
-        file_name_visible: true,
-        file_name: Some(row.file_name),
+        file_name_visible: can_see_file,
+        file_name: can_see_file.then_some(row.file_name),
         review_reason: row.review_reason,
         status_detail: row.status_detail,
         submitted_ip: row.submitted_ip,
         windows_job_id: row.windows_job_id,
-        preview_url: row
-            .preview_available
+        preview_url: (row.preview_available && can_see_file)
             .then(|| format!("/api/print/tasks/{}/preview", row.id)),
     }
 }

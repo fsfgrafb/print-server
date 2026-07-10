@@ -76,7 +76,7 @@ pub async fn login(
 ) -> AppResult<(CookieJar, Json<LoginResponse>)> {
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at
+        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at
         FROM users
         WHERE student_id = ?
         "#,
@@ -89,6 +89,22 @@ pub async fn login(
     if !session::verify_password(&user.password_hash, &request.password) {
         return Err(AppError::Unauthorized);
     }
+
+    sqlx::query("UPDATE users SET last_login_at = datetime('now') WHERE id = ?")
+        .bind(user.id)
+        .execute(&state.pool)
+        .await?;
+
+    let user = sqlx::query_as::<_, User>(
+        r#"
+        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at
+        FROM users
+        WHERE id = ?
+        "#,
+    )
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await?;
 
     let token = session::create_session(&state.pool, user.id, state.config.session_days).await?;
     let jar = jar.add(session_cookie(&token, state.config.session_days));
@@ -110,9 +126,10 @@ pub async fn me(CurrentUser(user): CurrentUser) -> AppResult<Json<LoginResponse>
 
 pub async fn change_password(
     State(state): State<AppState>,
+    jar: CookieJar,
     CurrentUser(user): CurrentUser,
     Json(request): Json<ChangePasswordRequest>,
-) -> AppResult<Json<LoginResponse>> {
+) -> AppResult<(CookieJar, Json<serde_json::Value>)> {
     if request.new_password.trim().is_empty() {
         return Err(AppError::BadRequest(
             "new password cannot be empty".to_string(),
@@ -129,21 +146,12 @@ pub async fn change_password(
         .bind(user.id)
         .execute(&state.pool)
         .await?;
+    session::delete_user_sessions(&state.pool, user.id).await?;
 
-    let updated = sqlx::query_as::<_, User>(
-        r#"
-        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at
-        FROM users
-        WHERE id = ?
-        "#,
-    )
-    .bind(user.id)
-    .fetch_one(&state.pool)
-    .await?;
-
-    Ok(Json(LoginResponse {
-        user: updated.into(),
-    }))
+    Ok((
+        jar.remove(remove_cookie()),
+        Json(serde_json::json!({ "ok": true, "relogin_required": true })),
+    ))
 }
 
 fn session_cookie(token: &str, session_days: i64) -> Cookie<'static> {

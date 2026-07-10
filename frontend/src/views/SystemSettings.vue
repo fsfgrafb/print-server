@@ -4,6 +4,7 @@ import { Save } from '@lucide/vue'
 import { useRouter } from 'vue-router'
 import { api, unwrapError } from '../api'
 import { refreshSession } from '../session'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const config = ref({
   daily_limit: '50',
@@ -14,6 +15,7 @@ const saving = ref(false)
 const loaded = ref(false)
 const message = ref('')
 const error = ref('')
+const showSaveDialog = ref(false)
 const router = useRouter()
 
 onMounted(load)
@@ -43,8 +45,8 @@ async function save() {
       await router.replace('/queue')
       return
     }
-    message.value = '保存成功'
     await load()
+    showSaveDialog.value = true
   } catch (err) {
     error.value = unwrapError(err)
   } finally {
@@ -81,5 +83,13 @@ async function save() {
 
     <p v-if="message" class="ok-text">{{ message }}</p>
     <p v-if="error" class="error-text">{{ error }}</p>
+
+    <ConfirmDialog
+      v-if="showSaveDialog"
+      title="保存成功"
+      confirm-text="确定"
+      :show-cancel="false"
+      @confirm="showSaveDialog = false"
+    />
   </section>
 </template>

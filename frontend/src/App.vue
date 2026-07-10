@@ -93,14 +93,14 @@ async function loadReviewCount() {
       </div>
 
       <nav v-if="!mustChangePassword" class="nav-group">
-        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="nav-link">
+        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="nav-link" draggable="false" @dragstart.prevent>
           <component :is="item.icon" :size="18" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
 
       <nav v-if="isAdmin && !mustChangePassword" class="nav-group admin-nav">
-        <RouterLink v-for="item in adminNav" :key="item.to" :to="item.to" class="nav-link">
+        <RouterLink v-for="item in adminNav" :key="item.to" :to="item.to" class="nav-link" draggable="false" @dragstart.prevent>
           <component :is="item.icon" :size="18" />
           <span>{{ item.label }}</span>
           <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>

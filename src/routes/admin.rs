@@ -76,7 +76,7 @@ pub async fn create_user(
     .execute(&state.pool)
     .await?;
     let created = sqlx::query_as::<_, User>(
-        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at FROM users WHERE id = ?",
+        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE id = ?",
     )
     .bind(result.last_insert_rowid())
     .fetch_one(&state.pool)
@@ -115,7 +115,7 @@ pub async fn users(
         .await?;
     let items = sqlx::query_as::<_, User>(
         r#"
-        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at
+        SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at
         FROM users
         ORDER BY role = 'admin' DESC, student_id ASC
         LIMIT ? OFFSET ?
@@ -258,7 +258,7 @@ pub async fn reset_password(
 ) -> AppResult<Json<serde_json::Value>> {
     ensure_admin(&user)?;
     let target = sqlx::query_as::<_, User>(
-        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at FROM users WHERE id = ?",
+        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE id = ?",
     )
     .bind(user_id)
     .fetch_optional(&state.pool)
@@ -611,7 +611,7 @@ pub async fn transfer_admin(
     }
 
     let existing = sqlx::query_as::<_, User>(
-        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at FROM users WHERE student_id = ?",
+        "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE student_id = ?",
     )
     .bind(student_id)
     .fetch_optional(&state.pool)
@@ -629,7 +629,7 @@ pub async fn transfer_admin(
         .execute(&state.pool)
         .await?;
         sqlx::query_as::<_, User>(
-            "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at FROM users WHERE id = ?",
+            "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE id = ?",
         )
         .bind(result.last_insert_rowid())
         .fetch_one(&state.pool)

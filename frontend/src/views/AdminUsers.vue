@@ -149,13 +149,15 @@ function roleLabel(user) {
 
     <table v-if="loaded" class="data-table">
       <thead>
-        <tr><th>学号</th><th>角色</th><th>QQ</th><th></th></tr>
+        <tr><th>学号</th><th>角色</th><th>QQ</th><th>注册时间</th><th>最后登录</th><th></th></tr>
       </thead>
       <tbody>
         <tr v-for="user in users" :key="user.id">
           <td>{{ user.student_id }}</td>
           <td>{{ roleLabel(user) }}</td>
           <td>{{ user.qq || '-' }}</td>
+          <td>{{ user.created_at || '-' }}</td>
+          <td>{{ user.last_login_at || '-' }}</td>
           <td class="row-actions">
             <button class="icon-button" type="button" title="重置为学号密码" @click="requestAction('reset', user)">
               <KeyRound :size="18" />

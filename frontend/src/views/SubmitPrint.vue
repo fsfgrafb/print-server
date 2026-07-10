@@ -248,7 +248,7 @@ async function performSubmit() {
             <span class="quota-pending-segment" :style="{ width: `${quotaPendingWidth}%` }"></span>
           </div>
           <div class="quota-legend">
-            <span v-if="projectedPages"><i class="pending-dot"></i>本次文件 {{ projectedPages }} 页</span>
+            <span v-if="projectedPages"><i class="pending-dot"></i>本次打印 {{ projectedPages }} 页</span>
           </div>
         </div>
         <div v-else class="quota-progress-card quota-loading">
@@ -314,7 +314,7 @@ async function performSubmit() {
     <ConfirmDialog
       v-if="showOverLimitConfirm"
       title="提交超额打印"
-      :message="`本次文件会超过今日额度，任务将进入管理员审核。管理员 QQ：${adminContact.qq || '未填写'}，学号：${adminContact.student_id || '未填写'}。`"
+      :message="`本次打印会超过今日额度，任务将进入管理员审核。管理员 QQ：${adminContact.qq || '未填写'}，学号：${adminContact.student_id || '未填写'}。`"
       confirm-text="继续提交"
       :busy="submitting"
       @cancel="showOverLimitConfirm = false"

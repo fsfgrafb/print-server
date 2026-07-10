@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Save } from '@lucide/vue'
 import { api, unwrapError } from '../api'
 import { refreshSession, session } from '../session'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -12,6 +13,8 @@ const admin = ref({ student_id: '', qq: '' })
 const loaded = ref(false)
 const message = ref('')
 const error = ref('')
+const showProfileDialog = ref(false)
+const showPasswordDialog = ref(false)
 const router = useRouter()
 
 onMounted(async () => {
@@ -41,18 +44,22 @@ async function changePassword() {
     })
     newPassword.value = ''
     confirmPassword.value = ''
-    message.value = '密码已修改'
-    await refreshSession()
-    await router.replace('/submit')
+    session.user = null
+    showPasswordDialog.value = true
   } catch (err) {
     error.value = unwrapError(err)
   }
 }
 
 async function saveProfile() {
-  await api.post('/user/profile', { qq: qq.value })
-  message.value = '资料已保存'
-  await refreshSession()
+  error.value = ''
+  try {
+    await api.post('/user/profile', { qq: qq.value })
+    await refreshSession()
+    showProfileDialog.value = true
+  } catch (err) {
+    error.value = unwrapError(err)
+  }
 }
 </script>
 
@@ -74,7 +81,7 @@ async function saveProfile() {
     <section v-if="loaded && !session.user?.must_change_password" class="panel form-grid">
       <label>
         我的 QQ
-        <input v-model.trim="qq" />
+        <input v-model.trim="qq" name="qq_number" autocomplete="off" inputmode="numeric" />
       </label>
       <button class="primary-button" type="button" @click="saveProfile">
         <Save :size="18" />
@@ -85,11 +92,11 @@ async function saveProfile() {
     <section v-if="loaded" class="panel form-grid">
       <label>
         新密码
-        <input v-model="newPassword" type="password" />
+        <input v-model="newPassword" type="password" autocomplete="new-password" />
       </label>
       <label>
         确认密码
-        <input v-model="confirmPassword" type="password" />
+        <input v-model="confirmPassword" type="password" autocomplete="new-password" />
       </label>
       <button class="primary-button" type="button" @click="changePassword">
         <Save :size="18" />
@@ -98,5 +105,22 @@ async function saveProfile() {
       <p v-if="message" class="ok-text">{{ message }}</p>
       <p v-if="error" class="error-text">{{ error }}</p>
     </section>
+
+    <ConfirmDialog
+      v-if="showProfileDialog"
+      title="保存成功"
+      confirm-text="确定"
+      :show-cancel="false"
+      @confirm="showProfileDialog = false"
+    />
+
+    <ConfirmDialog
+      v-if="showPasswordDialog"
+      title="密码已修改"
+      message="请使用新密码重新登录。"
+      confirm-text="确定"
+      :show-cancel="false"
+      @confirm="router.replace('/login')"
+    />
   </section>
 </template>

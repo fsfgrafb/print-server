@@ -12,7 +12,8 @@ pub async fn run(pool: &SqlitePool) -> AppResult<()> {
             role TEXT NOT NULL DEFAULT 'user',
             qq TEXT,
             must_change_password INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_login_at TEXT
         )
         "#,
         r#"
@@ -109,6 +110,7 @@ pub async fn run(pool: &SqlitePool) -> AppResult<()> {
     add_column_if_missing(pool, "print_tasks", "job_seen_at", "TEXT").await?;
     add_column_if_missing(pool, "print_tasks", "status_detail", "TEXT").await?;
     add_column_if_missing(pool, "print_tasks", "submitted_ip", "TEXT").await?;
+    add_column_if_missing(pool, "users", "last_login_at", "TEXT").await?;
 
     Ok(())
 }

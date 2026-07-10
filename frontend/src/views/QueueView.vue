@@ -231,7 +231,7 @@ function rangeLabel(range) {
             </div>
             <span class="status-pill" :class="task.status">{{ statusLabel(task.status) }}</span>
           </div>
-          <h2>{{ task.file_name || `打印任务 ${task.id}` }}</h2>
+          <h2>{{ task.file_name_visible ? (task.file_name || `打印任务 ${task.id}`) : '无权限查看文件名' }}</h2>
           <p>
             {{ task.page_count }} 页 · {{ rangeLabel(task.odd_even) }}
             <template v-if="task.owner_name"> · {{ task.owner_name }}</template>
@@ -271,7 +271,7 @@ function rangeLabel(range) {
     <div v-if="previewTask" class="preview-modal" role="dialog" aria-modal="true" @click.self="previewTask = null">
       <section class="preview-dialog">
         <header>
-          <strong>{{ previewTask.file_name }}</strong>
+          <strong>{{ previewTask.file_name || `打印任务 ${previewTask.id}` }}</strong>
           <button class="icon-button" type="button" title="关闭预览" @click="previewTask = null"><X :size="18" /></button>
         </header>
         <iframe :src="`${previewTask.preview_url}#zoom=100`" title="最终打印 PDF 预览"></iframe>
@@ -281,7 +281,7 @@ function rangeLabel(range) {
     <ConfirmDialog
       v-if="pendingAction"
       title="取消打印任务"
-      :message="`任务 #${pendingAction.task.id} · ${pendingAction.task.file_name || '未公开文件名'}`"
+      :message="`任务 #${pendingAction.task.id} · ${pendingAction.task.file_name_visible ? (pendingAction.task.file_name || '未命名文件') : '无权限查看文件名'}`"
       confirm-text="确认取消"
       :danger="true"
       :input-label="isAdmin ? '取消原因（可选）' : ''"

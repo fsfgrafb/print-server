@@ -10,6 +10,7 @@ pub struct User {
     pub qq: Option<String>,
     pub must_change_password: bool,
     pub created_at: String,
+    pub last_login_at: Option<String>,
 }
 
 impl User {
@@ -26,6 +27,7 @@ pub struct UserView {
     pub qq: Option<String>,
     pub must_change_password: bool,
     pub created_at: String,
+    pub last_login_at: Option<String>,
 }
 
 impl From<User> for UserView {
@@ -37,6 +39,7 @@ impl From<User> for UserView {
             qq: user.qq,
             must_change_password: user.must_change_password,
             created_at: user.created_at,
+            last_login_at: user.last_login_at,
         }
     }
 }
@@ -50,6 +53,7 @@ impl From<&User> for UserView {
             qq: user.qq.clone(),
             must_change_password: user.must_change_password,
             created_at: user.created_at.clone(),
+            last_login_at: user.last_login_at.clone(),
         }
     }
 }
