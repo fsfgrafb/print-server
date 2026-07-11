@@ -41,7 +41,7 @@ pub async fn quota_info(
 #[derive(Debug, Serialize)]
 pub struct SubmitStatsResponse {
     pub visit_count: i64,
-    pub print_total_count: i64,
+    pub print_total_pages: i64,
 }
 
 pub async fn submit_stats(
@@ -65,14 +65,15 @@ pub async fn submit_stats(
     .await?;
     tx.commit().await?;
 
-    let print_total_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM print_tasks WHERE status = 'done'")
-            .fetch_one(&state.pool)
-            .await?;
+    let print_total_pages: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(page_count), 0) FROM print_tasks WHERE status = 'done'",
+    )
+    .fetch_one(&state.pool)
+    .await?;
 
     Ok(Json(SubmitStatsResponse {
         visit_count,
-        print_total_count,
+        print_total_pages,
     }))
 }
 

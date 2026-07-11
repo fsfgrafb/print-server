@@ -39,6 +39,10 @@ async function confirmReject() {
   rejecting.value = null
   await load()
 }
+
+function rangeLabel(range) {
+  return { all: '全部页', odd: '奇数页', even: '偶数页' }[range] || range
+}
 </script>
 
 <template>
@@ -50,7 +54,7 @@ async function confirmReject() {
       </div>
     </header>
 
-    <p v-if="!loaded" class="loading-state">正在加载审核任务</p>
+    <p v-if="!loaded" class="loading-state">正在加载审核</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
     <div v-if="loaded" class="task-grid">
@@ -60,11 +64,11 @@ async function confirmReject() {
           <span>{{ task.owner_name }}</span>
         </div>
         <h2>{{ task.file_name }}</h2>
-        <p>{{ task.page_count }} 页 · {{ task.odd_even }}</p>
+        <p>{{ task.page_count }} 页 · {{ rangeLabel(task.odd_even) }}</p>
         <div class="button-row">
           <button class="primary-button" type="button" @click="approve(task)">
             <Check :size="18" />
-            <span>同意</span>
+            <span>通过</span>
           </button>
           <button class="ghost-button danger-text" type="button" @click="reject(task)">
             <X :size="18" />

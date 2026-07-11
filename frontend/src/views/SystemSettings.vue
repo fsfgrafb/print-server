@@ -41,7 +41,7 @@ async function save() {
     if (transferStudentId.value.trim()) {
       await api.post('/admin/transfer', { new_admin_student_id: transferStudentId.value.trim() })
       await refreshSession()
-      message.value = '已保存，管理员已转让'
+      message.value = '已保存并转让管理员'
       await router.replace('/queue')
       return
     }
@@ -73,7 +73,7 @@ async function save() {
       </label>
       <label>
         转让管理员
-        <input v-model.trim="transferStudentId" placeholder="新管理员学号，留空则不转让" />
+        <input v-model.trim="transferStudentId" placeholder="输入已有用户学号，留空不转让" />
       </label>
       <button class="primary-button" type="button" :disabled="saving" @click="save">
         <Save :size="18" />

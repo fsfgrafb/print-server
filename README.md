@@ -342,7 +342,7 @@ Windows 还可能返回 `Active`、`Processing`、`Busy`、`Initializing`、`Wai
 
 ## 完成情况与验收边界
 
-需求草案和早期后端结构草案已经合并进本 README、部署说明和现有实现，因此不再单独保留。目前业务接口、用户与管理员功能、额度审核、上传区拖放上传、文件转换、持久化队列、打印机状态阻塞、作业跟踪、提交页访问/总打印次数展示、历史统计和清理任务均已实现。健康检查已合入路由入口，小型全局配置服务已内联到服务模块入口，避免为单一端点或薄封装保留额外源码文件。
+需求草案和早期后端结构草案已经合并进本 README、部署说明和现有实现，因此不再单独保留。目前业务接口、用户与管理员功能、额度审核、上传区拖放上传、文件转换、持久化队列、打印机状态阻塞、作业跟踪、提交页访问/累计打印页数展示、历史统计和清理任务均已实现。健康检查已合入路由入口，小型全局配置服务已内联到服务模块入口，避免为单一端点或薄封装保留额外源码文件。
 
 仍需在目标电脑完成以下部署验收，不能仅用编译通过代替：
 
@@ -360,7 +360,7 @@ Windows 还可能返回 `Active`、`Processing`、`Busy`、`Initializing`、`Wai
 - `GET /api/auth/me`：获取当前用户
 - `POST /api/print/upload`：上传文件并生成预览
 - `POST /api/print/submit`：提交打印任务
-- `GET /api/user/submit-stats`：提交页访问次数累加，并返回已完成打印总次数
+- `GET /api/user/submit-stats`：提交页访问次数累加，并返回累计完成页数
 - `GET /api/queue`：分页查看共享队列与历史，可传 `mine_only=true` 或 `student_id`
 - `GET /api/print/tasks/:task_id/preview`：预览最终打印 PDF（管理员或任务本人可访问）
 - `GET /api/print/tasks/:task_id/source`：下载原始上传文件（管理员或任务本人可访问）

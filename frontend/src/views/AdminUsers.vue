@@ -103,7 +103,8 @@ async function confirmAction() {
 }
 
 function roleLabel(user) {
-  return user.must_change_password ? 'unregistered' : user.role
+  if (user.must_change_password) return '待首次登录'
+  return user.role === 'admin' ? '管理员' : '用户'
 }
 </script>
 
@@ -117,21 +118,21 @@ function roleLabel(user) {
       <div class="button-row">
         <button class="ghost-button" type="button" @click="showAddUser = !showAddUser">
           <Plus :size="18" />
-          <span>添加用户</span>
+          <span>新增用户</span>
         </button>
         <label class="file-button">
           <Upload :size="18" />
           <span>{{ file ? file.name : '选择导入文件' }}</span>
           <input type="file" accept=".xlsx,.xls,.csv,.txt" hidden @change="event => file = event.target.files[0]" />
         </label>
-        <button class="primary-button" type="button" :disabled="!file" @click="importUsers">确认导入</button>
+        <button class="primary-button" type="button" :disabled="!file" @click="importUsers">导入</button>
       </div>
     </header>
 
-    <p v-if="result" class="ok-text">新增 {{ result.created.length }} 人，跳过 {{ result.skipped.length }} 人</p>
+    <p v-if="result" class="ok-text">已新增 {{ result.created.length }} 人，跳过 {{ result.skipped.length }} 人</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <p v-if="!loaded" class="loading-state">正在加载用户列表</p>
+    <p v-if="!loaded" class="loading-state">正在加载用户</p>
 
     <section v-if="loaded && showAddUser" class="panel form-grid">
       <label>
@@ -141,7 +142,7 @@ function roleLabel(user) {
       <div class="button-row">
         <button class="primary-button" type="button" :disabled="busy || !newStudentId.trim()" @click="createUser">
           <Plus :size="18" />
-          <span>添加用户</span>
+          <span>新增用户</span>
         </button>
         <button class="ghost-button" type="button" :disabled="busy" @click="showAddUser = false">取消</button>
       </div>
@@ -186,7 +187,7 @@ function roleLabel(user) {
         ? `将 ${pendingAction.user.student_id} 的密码重置为其学号，并要求下次登录修改。`
         : pendingAction.type === 'delete'
           ? `将永久删除 ${pendingAction.user.student_id} 及其打印记录和文件。`
-          : '转让后当前账号将变为普通用户。'"
+          : '只能转让给已有用户。转让后，当前账号将变为普通用户。'"
       :confirm-text="pendingAction.type === 'reset' ? '确认重置' : pendingAction.type === 'delete' ? '确认删除' : '确认转让'"
       :danger="pendingAction.type === 'delete'"
       :input-label="pendingAction.type === 'transfer' ? '新管理员学号' : ''"

@@ -599,31 +599,13 @@ pub async fn transfer_admin(
         ));
     }
 
-    let existing = sqlx::query_as::<_, User>(
+    let new_admin = sqlx::query_as::<_, User>(
         "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE student_id = ?",
     )
     .bind(student_id)
     .fetch_optional(&state.pool)
-    .await?;
-
-    let new_admin = if let Some(user) = existing {
-        user
-    } else {
-        let hash = session::hash_password(student_id)?;
-        let result = sqlx::query(
-            "INSERT INTO users (student_id, password_hash, role, must_change_password) VALUES (?, ?, 'user', 1)",
-        )
-        .bind(student_id)
-        .bind(hash)
-        .execute(&state.pool)
-        .await?;
-        sqlx::query_as::<_, User>(
-            "SELECT id, student_id, password_hash, role, qq, must_change_password, created_at, last_login_at FROM users WHERE id = ?",
-        )
-        .bind(result.last_insert_rowid())
-        .fetch_one(&state.pool)
-        .await?
-    };
+    .await?
+    .ok_or_else(|| AppError::NotFound("接任管理员账号不存在，请先添加用户".to_string()))?;
 
     if new_admin.id == user.id {
         return Err(AppError::Conflict("请选择其他账号接任管理员".to_string()));

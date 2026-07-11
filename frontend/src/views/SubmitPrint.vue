@@ -8,7 +8,8 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 const router = useRouter()
 const quota = ref({ used_today: 0, reserved: 0, limit: 50, remaining: 50 })
 const quotaLoaded = ref(false)
-const submitStats = ref({ visit_count: 0, print_total_count: 0 })
+const submitStats = ref(null)
+const submitStatsLoaded = ref(false)
 const adminContact = ref({ student_id: '', qq: '' })
 const uploads = ref([])
 const previewItem = ref(null)
@@ -59,6 +60,7 @@ async function load() {
     quotaLoaded.value = true
     adminContact.value = contactRes.data
     submitStats.value = statsRes.data
+    submitStatsLoaded.value = true
     restoreUploads(uploadsRes.data.files || [])
   } catch (err) {
     error.value = unwrapError(err)
@@ -240,7 +242,7 @@ async function performSubmit() {
     <header class="page-header">
       <div>
         <h1>提交打印</h1>
-        <p>访问 {{ submitStats.visit_count }} 次 · 已完成打印 {{ submitStats.print_total_count }} 次</p>
+        <p v-if="submitStatsLoaded">访问 {{ submitStats.visit_count }} 次 · 累计打印 {{ submitStats.print_total_pages }} 页</p>
       </div>
       <button class="primary-button" type="button" :disabled="!canSubmit" @click="submit">
         <LoaderCircle v-if="submitting" class="spin" :size="18" />
@@ -250,7 +252,7 @@ async function performSubmit() {
     </header>
 
     <template v-if="!quotaLoaded">
-      <p v-if="!error" class="loading-state">正在加载提交页面</p>
+      <p v-if="!error" class="loading-state">正在加载提交页</p>
       <p v-else class="error-text">{{ error }}</p>
     </template>
 
@@ -264,9 +266,9 @@ async function performSubmit() {
         @drop="handleDropzoneDrop"
       >
         <span class="dropzone-icon"><UploadCloud :size="48" /></span>
-        <strong>拖拽文件到这里</strong>
+        <strong>拖拽文件到此处</strong>
         <span>或点击选择文件</span>
-        <small>支持 PDF、Word、Excel、PPT、图片和 TXT，可同时添加多个文件</small>
+        <small>支持 PDF、Word、Excel、PPT、图片、TXT，可多选</small>
         <input type="file" multiple hidden @change="pickFiles" />
       </label>
 
@@ -311,7 +313,7 @@ async function performSubmit() {
                 <span v-if="file.status === 'loading'">正在上传并生成预览…</span>
                 <span v-else-if="file.status === 'error'" class="danger-text" :title="file.error">{{ file.error }}</span>
                 <span v-else>
-                  {{ file.page_count }} 页<template v-if="file.odd_even !== 'all'"> · 实际打印 {{ selectedPages(file) }} 页</template>
+                  {{ file.page_count }} 页<template v-if="file.odd_even !== 'all'"> · 本次 {{ selectedPages(file) }} 页</template>
                 </span>
               </div>
               <button class="icon-button remove-button" type="button" title="移出" @click="removeUpload(file)">
@@ -320,7 +322,7 @@ async function performSubmit() {
             </div>
 
             <div v-if="file.status === 'ready'" class="page-range-control" :data-selection="file.odd_even">
-              <button type="button" :class="{ active: file.odd_even === 'all' }" @click="file.odd_even = 'all'">打印全部</button>
+              <button type="button" :class="{ active: file.odd_even === 'all' }" @click="file.odd_even = 'all'">全部页</button>
               <button type="button" :class="{ active: file.odd_even === 'odd' }" @click="file.odd_even = 'odd'">仅奇数页</button>
               <button type="button" :disabled="file.page_count < 2" :class="{ active: file.odd_even === 'even' }" @click="file.odd_even = 'even'">仅偶数页</button>
             </div>

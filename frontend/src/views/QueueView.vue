@@ -156,7 +156,7 @@ function closeOnEscape(event) {
 
 function statusLabel(status) {
   return {
-    queued: '排队中', printing: '打印中', pending_review: '待审核', done: '已结束', cancelled: '已取消'
+    queued: '排队中', printing: '打印中', pending_review: '待审核', done: '已完成', cancelled: '已取消'
   }[status] || status
 }
 
@@ -170,7 +170,7 @@ function rangeLabel(range) {
     <header class="page-header">
       <div>
         <h1>打印队列</h1>
-        <p>当前记录与近一年的打印历史</p>
+        <p>当前队列与近一年记录</p>
       </div>
       <div class="button-row queue-toolbar">
         <div v-if="!mineOnly" class="queue-search">

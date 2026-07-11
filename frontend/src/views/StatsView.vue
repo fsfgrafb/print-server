@@ -35,15 +35,15 @@ function exportCsv() {
       </button>
     </header>
 
-    <p v-if="!loaded" class="loading-state">正在加载统计数据</p>
+    <p v-if="!loaded" class="loading-state">正在加载统计</p>
     <p v-if="error" class="error-text">{{ error }}</p>
 
     <table v-if="loaded" class="data-table">
       <thead>
         <tr>
           <th>学号</th>
-          <th>总页数</th>
-          <th>总任务数</th>
+          <th>累计页数</th>
+          <th>完成任务</th>
         </tr>
       </thead>
       <tbody>
