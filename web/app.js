@@ -956,21 +956,20 @@ async function renderSubmit() {
   }
 
   async function uploadFiles(files) {
-    for (const file of files) {
-      const data = new FormData()
-      data.append('file', file)
-      try {
-        const result = await api('/print/upload', { method: 'POST', body: data })
-        const addedFiles = result.files.map((item) => ({
-          ...item,
-          odd_even: 'all',
-          custom_range: '',
-        }))
-        uploads.push(...addedFiles)
-        appendUploadCards(addedFiles)
-      } catch (error) {
-        notify(`${file.name}：${error.message}`, 'error')
-      }
+    if (files.length === 0) return
+    const data = new FormData()
+    files.forEach((file) => data.append('files', file))
+    try {
+      const result = await api('/print/upload', { method: 'POST', body: data })
+      const addedFiles = result.files.map((item) => ({
+        ...item,
+        odd_even: 'all',
+        custom_range: '',
+      }))
+      uploads.push(...addedFiles)
+      appendUploadCards(addedFiles)
+    } catch (error) {
+      notify(error.message, 'error')
     }
   }
   renderPage()

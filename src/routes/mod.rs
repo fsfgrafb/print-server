@@ -28,15 +28,7 @@ const FAVICON: &[u8] = include_bytes!("../../web/favicon.svg");
 const LOGO: &[u8] = include_bytes!("../../web/logo.svg");
 
 pub fn router(state: AppState) -> Router {
-    let body_limit = usize::try_from(
-        state
-            .config
-            .limits
-            .max_upload_bytes
-            .max(state.config.limits.max_import_bytes)
-            .saturating_add(1024 * 1024),
-    )
-    .unwrap_or(usize::MAX);
+    let body_limit = request_body_limit(&state.config);
     let authenticated = Router::new()
         .route("/auth/logout", post(auth::login::logout))
         .route("/auth/me", get(auth::login::me))
@@ -85,6 +77,21 @@ pub fn router(state: AppState) -> Router {
             ),
         ))
         .with_state(state)
+}
+
+fn request_body_limit(config: &crate::config::Config) -> usize {
+    let file_count = u64::try_from(config.limits.max_files_per_request).unwrap_or(u64::MAX);
+    let multi_upload_bytes = config
+        .limits
+        .max_upload_bytes
+        .saturating_mul(file_count)
+        .min(config.limits.max_temp_bytes_per_user);
+    usize::try_from(
+        multi_upload_bytes
+            .max(config.limits.max_import_bytes)
+            .saturating_add(1024 * 1024),
+    )
+    .unwrap_or(usize::MAX)
 }
 
 async fn index() -> Response {
@@ -171,7 +178,7 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt;
 
-    use super::router;
+    use super::{request_body_limit, router};
     use crate::{app::AppState, config::Config};
 
     async fn test_app() -> axum::Router {
@@ -181,6 +188,16 @@ mod tests {
             .await
             .unwrap();
         router(AppState::new(pool, Config::default()))
+    }
+
+    #[test]
+    fn request_body_limit_allows_multiple_upload_files() {
+        let config = Config::default();
+        assert_eq!(
+            request_body_limit(&config),
+            201 * 1024 * 1024,
+            "the default request limit should allow four 50 MiB files plus multipart overhead"
+        );
     }
 
     #[tokio::test]
@@ -247,6 +264,7 @@ mod tests {
         assert!(javascript.contains("function printerStatusDisplay"));
         assert!(javascript.contains("modal.classList.add('closing')"));
         assert!(javascript.contains("function updateNavHighlight"));
+        assert!(javascript.contains("files.forEach((file) => data.append('files', file))"));
         assert!(javascript.contains("无法连接服务器，请检查网络连接或确认程序正在运行"));
     }
 

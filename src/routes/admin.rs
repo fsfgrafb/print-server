@@ -291,6 +291,28 @@ pub async fn delete_user(
     }
     let _queue_guard = state.queue_lock.lock().await;
 
+    let unresolved_task_ids: Vec<i64> = sqlx::query_scalar(
+        r#"
+        SELECT id
+        FROM print_tasks
+        WHERE user_id = ? AND status IN ('spooling', 'uncertain')
+        ORDER BY id
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?;
+    if !unresolved_task_ids.is_empty() {
+        return Err(AppError::Conflict(format!(
+            "该用户存在尚未确认是否已提交到系统打印队列的任务：{}；请先逐项确认并取消这些任务",
+            unresolved_task_ids
+                .iter()
+                .map(i64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
+    }
+
     let printing_jobs = sqlx::query_as::<_, (i64, Option<i64>)>(
         "SELECT id, windows_job_id FROM print_tasks WHERE user_id = ? AND status = 'printing'",
     )
@@ -850,4 +872,70 @@ async fn file_paths_for_user(pool: &sqlx::SqlitePool, user_id: i64) -> AppResult
         })
         .flatten()
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::extract::{Path, State};
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    use super::delete_user;
+    use crate::{
+        app::AppState,
+        auth::middleware::CurrentUser,
+        config::Config,
+        db::{migrate, models::User},
+        error::AppError,
+    };
+
+    #[tokio::test]
+    async fn delete_user_preserves_uncertain_print_evidence() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        migrate::run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO users (student_id, password_hash, role, status, must_change_password) VALUES ('admin', 'hash', 'admin', 'normal', 0), ('target', 'hash', 'user', 'normal', 0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let admin = sqlx::query_as::<_, User>(
+            "SELECT id, student_id, password_hash, role, qq, phone, status, must_change_password, created_at, last_login_at FROM users WHERE student_id = 'admin'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let target_id: i64 = sqlx::query_scalar("SELECT id FROM users WHERE student_id = 'target'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO print_tasks (user_id, file_name, stored_path, status) VALUES (?, 'evidence.pdf', 'evidence.pdf', 'uncertain')",
+        )
+        .bind(target_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let state = AppState::new(pool.clone(), Config::default());
+        let result = delete_user(State(state), CurrentUser(admin), Path(target_id)).await;
+        assert!(matches!(result, Err(AppError::Conflict(_))));
+
+        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id = ?")
+            .bind(target_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let task_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM print_tasks WHERE user_id = ?")
+                .bind(target_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(user_count, 1);
+        assert_eq!(task_count, 1);
+    }
 }

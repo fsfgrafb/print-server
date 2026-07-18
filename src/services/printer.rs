@@ -383,20 +383,8 @@ async fn run_cups(config: &Config, args: &[&str]) -> AppResult<String> {
                 &["-d", &config.printer.name, "-t", &title, path],
             )
             .await?;
-            let job_id = output
-                .split_whitespace()
-                .find_map(|word| {
-                    word.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-')
-                        .rsplit('-')
-                        .next()
-                        .and_then(|id| id.parse::<i64>().ok())
-                })
-                .ok_or_else(|| AppError::External(format!("cannot parse CUPS job id: {output}")))?;
-            serde_json::to_string(&SubmittedJob {
-                job_id,
-                job_name: title,
-            })
-            .map_err(|error| AppError::External(error.to_string()))
+            serde_json::to_string(&parse_cups_submitted_job(&output)?)
+                .map_err(|error| AppError::External(error.to_string()))
         }
         "Cancel" => {
             let job_id =
@@ -406,6 +394,31 @@ async fn run_cups(config: &Config, args: &[&str]) -> AppResult<String> {
         }
         _ => Err(AppError::External("unsupported CUPS action".into())),
     }
+}
+
+#[cfg(any(not(windows), test))]
+fn parse_cups_submitted_job(output: &str) -> AppResult<SubmittedJob> {
+    let (request_name, job_id) = output
+        .split_whitespace()
+        .filter_map(|word| {
+            let request_name = word.trim_matches(|character: char| {
+                matches!(character, '"' | '\'' | '(' | ')' | ',' | ':')
+            });
+            let (_, id) = request_name.rsplit_once('-')?;
+            let id = id.parse::<i64>().ok().filter(|id| *id > 0)?;
+            Some((request_name.to_string(), id))
+        })
+        .next()
+        .ok_or_else(|| AppError::External(format!("cannot parse CUPS job id: {output}")))?;
+
+    Ok(SubmittedJob {
+        job_id,
+        // `lpstat -o` reports the CUPS request name (for example
+        // `printer-42`), not the document title passed through `lp -t`.
+        // Persisting the request name lets the next status poll match the
+        // active job instead of marking it complete prematurely.
+        job_name: request_name,
+    })
 }
 
 #[cfg(not(windows))]
@@ -456,7 +469,7 @@ fn empty_backend_status() -> BackendStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify, BackendStatus};
+    use super::{classify, parse_cups_submitted_job, BackendStatus};
     use crate::config::Config;
 
     #[test]
@@ -502,6 +515,14 @@ mod tests {
         assert!(!offline.available);
         assert!(!offline.blocked);
         assert!(offline.blocking_reasons.is_empty());
+    }
+
+    #[test]
+    fn cups_submission_keeps_the_request_name_used_by_lpstat() {
+        let job = parse_cups_submitted_job("request id is hp-laserjet-42 (1 file(s))").unwrap();
+        assert_eq!(job.job_id, 42);
+        assert_eq!(job.job_name, "hp-laserjet-42");
+        assert!(parse_cups_submitted_job("no request identifier").is_err());
     }
 
     fn empty() -> BackendStatus {
