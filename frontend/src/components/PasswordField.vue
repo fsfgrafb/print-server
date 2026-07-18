@@ -1,7 +1,4 @@
 <script setup>
-import { ref } from 'vue'
-import { Eye, EyeOff } from '@lucide/vue'
-
 defineOptions({ inheritAttrs: false })
 
 defineProps({
@@ -12,8 +9,6 @@ defineProps({
 })
 
 defineEmits(['update:modelValue'])
-
-const visible = ref(false)
 </script>
 
 <template>
@@ -23,22 +18,11 @@ const visible = ref(false)
       <input
         v-bind="$attrs"
         :value="modelValue"
-        :type="visible ? 'text' : 'password'"
+        type="password"
         :autocomplete="autocomplete"
         :required="required"
         @input="$emit('update:modelValue', $event.target.value)"
       />
-      <button
-        class="password-toggle"
-        type="button"
-        :title="visible ? '隐藏密码' : '显示密码'"
-        :aria-label="visible ? '隐藏密码' : '显示密码'"
-        :aria-pressed="visible"
-        @click="visible = !visible"
-      >
-        <EyeOff v-if="visible" :size="18" />
-        <Eye v-else :size="18" />
-      </button>
     </span>
   </label>
 </template>
