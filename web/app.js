@@ -240,6 +240,123 @@ function openActionDialog({
   else confirmButton.focus()
 }
 
+function openImportUsersDialog(onImported) {
+  activeActionDialog?.()
+  const returnFocus = document.activeElement
+  const backdrop = document.createElement('div')
+  backdrop.className = 'dialog-backdrop'
+  backdrop.innerHTML = `
+    <form class="confirm-dialog batch-import-dialog" role="dialog" aria-modal="true" aria-label="批量导入用户">
+      <header>
+        <strong>批量导入用户</strong>
+        <button class="icon-button dialog-close" type="button" title="关闭" aria-label="关闭">${icon('x')}</button>
+      </header>
+      <label class="dialog-input">
+        学号
+        <textarea class="batch-student-ids" rows="9" placeholder="每行输入一个学号" autocomplete="off"></textarea>
+      </label>
+      <div class="batch-format-note">
+        <p>也可以选择 TXT 或 Excel 文件：</p>
+        <ul>
+          <li>TXT 文件每行一个学号</li>
+          <li>Excel 文件每个单元格一个学号</li>
+        </ul>
+      </div>
+      <label class="ghost-button batch-file-button">
+        ${icon('upload')}
+        <span class="batch-file-name">选择 TXT 或 Excel 文件</span>
+        <input class="batch-file-input" type="file" accept=".txt,.xlsx,.xls,.xlsm" hidden />
+      </label>
+      <footer>
+        <button class="ghost-button dialog-cancel" type="button">取消</button>
+        <button class="primary-button dialog-confirm" type="submit">批量导入</button>
+      </footer>
+    </form>`
+
+  const form = backdrop.querySelector('form')
+  const closeButton = backdrop.querySelector('.dialog-close')
+  const cancelButton = backdrop.querySelector('.dialog-cancel')
+  const confirmButton = backdrop.querySelector('.dialog-confirm')
+  const textarea = backdrop.querySelector('.batch-student-ids')
+  const fileInput = backdrop.querySelector('.batch-file-input')
+  const fileName = backdrop.querySelector('.batch-file-name')
+  let selectedFile = null
+  let busy = false
+  let closed = false
+
+  const close = (force = false) => {
+    if (closed || (busy && !force)) return
+    closed = true
+    window.removeEventListener('keydown', closeOnEscape)
+    backdrop.remove()
+    if (activeActionDialog === close) activeActionDialog = null
+    if (returnFocus?.isConnected) returnFocus.focus()
+  }
+  const closeOnEscape = (event) => {
+    if (event.key === 'Escape') close()
+  }
+  const setBusy = (nextBusy) => {
+    busy = nextBusy
+    closeButton.disabled = nextBusy
+    cancelButton.disabled = nextBusy
+    confirmButton.disabled = nextBusy
+    textarea.disabled = nextBusy
+    fileInput.disabled = nextBusy
+    confirmButton.textContent = nextBusy ? '导入中…' : '批量导入'
+  }
+
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) close()
+  })
+  closeButton.addEventListener('click', () => close())
+  cancelButton.addEventListener('click', () => close())
+  window.addEventListener('keydown', closeOnEscape)
+  fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files[0] || null
+    if (!selectedFile) return
+    textarea.value = ''
+    fileName.textContent = selectedFile.name
+  })
+  textarea.addEventListener('input', () => {
+    if (!selectedFile) return
+    selectedFile = null
+    fileInput.value = ''
+    fileName.textContent = '选择 TXT 或 Excel 文件'
+  })
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (busy) return
+    const studentIds = textarea.value.trim()
+    if (!selectedFile && !studentIds) {
+      notify('请输入学号或选择导入文件', 'error')
+      textarea.focus()
+      return
+    }
+
+    const body = new FormData()
+    if (selectedFile) {
+      body.append('file', selectedFile)
+    } else {
+      body.append('file', new Blob([studentIds], { type: 'text/plain;charset=utf-8' }), 'users.txt')
+    }
+    setBusy(true)
+    try {
+      const result = await api('/admin/users/import', { method: 'POST', body })
+      notify(`创建 ${result.created.length} 个，跳过 ${result.skipped.length} 个`, 'success')
+      await onImported()
+      close(true)
+    } catch (error) {
+      notify(error.message, 'error')
+      setBusy(false)
+    }
+  })
+
+  app.append(backdrop)
+  activeActionDialog = close
+  state.cleanup.push(() => close(true))
+  textarea.focus()
+}
+
 function setSession(response) {
   state.user = response.user
   state.minPasswordLength =
@@ -473,7 +590,7 @@ async function renderRoute({ animate = false } = {}) {
     route = 'submit'
     replaceRouteHash(route)
   }
-  shell(`<section class="page page-loading-shell"><p class="loading-state">正在加载…</p></section>`)
+  shell('<section class="page page-loading-shell"></section>')
   try {
     await {
       submit: renderSubmit,
@@ -1242,7 +1359,7 @@ async function renderUsers() {
             <button class="icon-button" type="submit" title="查询" aria-label="查询">${icon('search')}</button>
           </div>
           <button id="add-user" class="ghost-button" type="button">${icon('plus')}<span>添加用户</span></button>
-          <label class="ghost-button">${icon('upload')}<span>批量导入</span><input id="import-users" type="file" accept=".xlsx,.xls,.xlsm,.csv,.txt" hidden /></label>
+          <button id="import-users" class="ghost-button" type="button">${icon('upload')}<span>批量导入</span></button>
           <a class="ghost-button" href="/api/admin/stats.csv" target="_blank">${icon('download')}<span>导出统计</span></a>
         </form>`,
       )}
@@ -1298,18 +1415,9 @@ async function renderUsers() {
       },
     })
   })
-  document.querySelector('#import-users').addEventListener('change', async (event) => {
-    if (!event.target.files[0]) return
-    const body = new FormData()
-    body.append('file', event.target.files[0])
-    try {
-      const result = await api('/admin/users/import', { method: 'POST', body })
-      notify(`创建 ${result.created.length} 个，跳过 ${result.skipped.length} 个`, 'success')
-      await renderUsers()
-    } catch (error) {
-      notify(error.message, 'error')
-    }
-  })
+  document
+    .querySelector('#import-users')
+    .addEventListener('click', () => openImportUsersDialog(renderUsers))
   document.querySelectorAll('[data-user]').forEach((row) => {
     const user = data.items.find((item) => String(item.id) === row.dataset.user)
     row.querySelector('.reset-user').addEventListener('click', () => {

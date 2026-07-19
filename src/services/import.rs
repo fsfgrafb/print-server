@@ -58,16 +58,14 @@ pub fn parse_student_ids(path: &Path, bytes: &[u8]) -> AppResult<Vec<String>> {
 fn parse_excel(path: &Path) -> AppResult<Vec<String>> {
     let mut workbook =
         open_workbook_auto(path).map_err(|error| AppError::BadRequest(error.to_string()))?;
-    let Some(range) = workbook.worksheet_range_at(0) else {
-        return Ok(Vec::new());
-    };
-    let range = range.map_err(|error| AppError::BadRequest(error.to_string()))?;
-
-    Ok(range
-        .rows()
-        .filter_map(|row| row.first())
-        .map(|cell| cell.to_string())
-        .collect())
+    let mut ids = Vec::new();
+    for sheet_name in workbook.sheet_names().to_owned() {
+        let range = workbook
+            .worksheet_range(&sheet_name)
+            .map_err(|error| AppError::BadRequest(error.to_string()))?;
+        ids.extend(range.cells().map(|(_, _, cell)| cell.to_string()));
+    }
+    Ok(ids)
 }
 
 fn parse_plain(bytes: &[u8]) -> Vec<String> {

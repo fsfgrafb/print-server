@@ -22,7 +22,8 @@ body,
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -33,7 +34,8 @@ button {
 button,
 a,
 input,
-select {
+select,
+textarea {
   transition:
     color 180ms ease,
     background-color 180ms ease,
@@ -603,6 +605,8 @@ button:disabled {
 .custom-page-editor-inner {
   display: grid;
   min-height: 0;
+  margin-inline: -3px;
+  padding-inline: 3px;
   padding-top: 0;
   overflow: hidden;
   transition: padding-top 280ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1265,11 +1269,25 @@ a:focus-visible {
   text-overflow: ellipsis;
 }
 
-.loading-state {
-  display: grid;
-  place-items: center;
-  margin: 0;
-  color: #687386;
+.batch-import-dialog {
+  width: min(520px, 92vw);
+}
+
+.batch-student-ids {
+  width: 100%;
+  min-height: 180px;
+  padding: 10px 12px;
+  resize: vertical;
+  color: #172033;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  outline: none;
+  line-height: 1.55;
+}
+
+.batch-student-ids:focus {
+  border-color: #1667b7;
+  box-shadow: 0 0 0 3px rgba(22, 103, 183, 0.12);
 }
 
 .alert-banner {
