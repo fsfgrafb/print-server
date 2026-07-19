@@ -252,7 +252,9 @@ mod tests {
         assert!(javascript.contains("await renderRoute({ animate: true })"));
         assert!(javascript.contains("modal.className = 'preview-modal'"));
         assert!(!javascript.contains("window.open(previewUrl"));
-        assert!(javascript.contains("addEventListener('click', () => closePreview())"));
+        assert!(javascript.contains("function openPdfPreview"));
+        assert!(javascript.contains("openPdfPreview(task.preview_url"));
+        assert!(javascript.contains("class=\"ghost-button preview-task\""));
         assert!(javascript.contains("data-range=\"custom\""));
         assert!(javascript.contains("parseCustomPageRange"));
         assert!(javascript.contains("function openActionDialog"));

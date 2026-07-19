@@ -1480,6 +1480,7 @@ a:focus-visible {
 .queue-task-actions {
   display: flex;
   align-items: center;
+  align-self: center;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;

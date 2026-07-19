@@ -9,12 +9,29 @@ mod utils;
 mod ws;
 
 use app::AppState;
+use chrono::Local;
 use config::Config;
 use error::AppResult;
-use std::net::SocketAddr;
+use std::{fmt, net::SocketAddr};
 use tokio::net::TcpListener;
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    fmt::{format::Writer, time::FormatTime},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
+
+struct LocalLogTime;
+
+impl FormatTime for LocalLogTime {
+    fn format_time(&self, writer: &mut Writer<'_>) -> fmt::Result {
+        write!(
+            writer,
+            "{}",
+            Local::now().format("%Y-%m-%dT%H:%M:%S%.6f%:z")
+        )
+    }
+}
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
@@ -23,7 +40,11 @@ async fn main() -> AppResult<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "printing_platform=info,tower_http=info,axum=info".into()),
         )
-        .with(tracing_subscriber::fmt::layer().with_ansi(false))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_timer(LocalLogTime)
+                .with_ansi(false),
+        )
         .init();
 
     let config = Config::load()?;

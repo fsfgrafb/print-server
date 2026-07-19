@@ -12,6 +12,7 @@ const state = {
 
 let routeNavigation = Promise.resolve()
 let activeActionDialog = null
+let activePreviewDialogClose = null
 
 const routes = {
   submit: { label: '提交打印', icon: 'upload', admin: false },
@@ -355,6 +356,64 @@ function openImportUsersDialog(onImported) {
   activeActionDialog = close
   state.cleanup.push(() => close(true))
   textarea.focus()
+}
+
+function openPdfPreview(previewPath, title, trigger) {
+  const sourceUrl = localApiUrl(previewPath)
+  if (!sourceUrl) {
+    notify('预览地址无效', 'error')
+    return null
+  }
+
+  activePreviewDialogClose?.(true)
+  const returnFocus = trigger
+  const previewUrl = sourceUrl.includes('#') ? sourceUrl : `${sourceUrl}#zoom=100`
+  const modal = document.createElement('div')
+  modal.className = 'preview-modal'
+  modal.setAttribute('role', 'dialog')
+  modal.setAttribute('aria-modal', 'true')
+  modal.setAttribute('aria-labelledby', 'preview-title')
+  modal.innerHTML = `
+    <section class="preview-dialog">
+      <header>
+        <strong id="preview-title" title="${escapeHtml(title)}">${escapeHtml(title)}</strong>
+        <button class="icon-button close-preview" type="button" title="关闭预览" aria-label="关闭预览">${icon('x')}</button>
+      </header>
+      <iframe src="${escapeHtml(previewUrl)}" title="PDF 预览"></iframe>
+    </section>`
+
+  let closeTimer = null
+  let closed = false
+  const close = (immediate = false) => {
+    if (closed || (modal.classList.contains('closing') && !immediate)) return
+    const finish = () => {
+      if (closed) return
+      closed = true
+      clearTimeout(closeTimer)
+      window.removeEventListener('keydown', closeOnEscape)
+      modal.remove()
+      if (activePreviewDialogClose === close) activePreviewDialogClose = null
+      if (returnFocus?.isConnected) returnFocus.focus()
+    }
+    if (immediate) return finish()
+    modal.classList.add('closing')
+    modal.querySelector('.preview-dialog').addEventListener('animationend', finish, { once: true })
+    closeTimer = setTimeout(finish, 320)
+  }
+  const closeOnEscape = (event) => {
+    if (event.key === 'Escape') close()
+  }
+
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) close()
+  })
+  modal.querySelector('.close-preview').addEventListener('click', () => close())
+  window.addEventListener('keydown', closeOnEscape)
+  app.append(modal)
+  activePreviewDialogClose = close
+  state.cleanup.push(() => close(true))
+  modal.querySelector('.close-preview').focus()
+  return close
 }
 
 function setSession(response) {
@@ -769,10 +828,8 @@ async function renderSubmit() {
   }))
   const quotaTransitionMs = 220
   let quotaAnimationFrame = null
-  let previewModal = null
   let previewFileId = null
-  let previewReturnFocus = null
-  let previewCloseTimer = null
+  let closeCurrentPreview = null
   let submitting = false
   let localUploadSequence = 0
 
@@ -925,59 +982,12 @@ async function renderSubmit() {
     errorWrap.classList.toggle('visible', customIsOpen && Boolean(selection.error))
   }
 
-  const closePreview = (immediate = false) => {
-    if (!previewModal) return
-    const modal = previewModal
-    if (modal.classList.contains('closing') && !immediate) return
-    const finish = () => {
-      clearTimeout(previewCloseTimer)
-      modal.remove()
-      if (previewModal === modal) {
-        previewModal = null
-        previewFileId = null
-        if (previewReturnFocus?.isConnected) previewReturnFocus.focus()
-        previewReturnFocus = null
-      }
-    }
-    if (immediate) return finish()
-    modal.classList.add('closing')
-    modal.querySelector('.preview-dialog').addEventListener('animationend', finish, { once: true })
-    previewCloseTimer = setTimeout(finish, 320)
-  }
-
   const showPreview = (file, trigger) => {
-    const sourceUrl = localApiUrl(file.preview_url)
-    if (!sourceUrl) return notify('预览地址无效', 'error')
-    closePreview(true)
-    previewReturnFocus = trigger
+    const close = openPdfPreview(file.preview_url, file.original_name, trigger)
+    if (!close) return
     previewFileId = String(file.temp_id)
-    const previewUrl = sourceUrl.includes('#') ? sourceUrl : `${sourceUrl}#zoom=100`
-    const modal = document.createElement('div')
-    modal.className = 'preview-modal'
-    modal.setAttribute('role', 'dialog')
-    modal.setAttribute('aria-modal', 'true')
-    modal.setAttribute('aria-labelledby', 'preview-title')
-    modal.innerHTML = `
-      <section class="preview-dialog">
-        <header>
-          <strong id="preview-title" title="${escapeHtml(file.original_name)}">${escapeHtml(file.original_name)}</strong>
-          <button class="icon-button close-preview" type="button" title="关闭预览" aria-label="关闭预览">${icon('x')}</button>
-        </header>
-        <iframe src="${escapeHtml(previewUrl)}" title="PDF 预览"></iframe>
-      </section>`
-    modal.addEventListener('click', (event) => {
-      if (event.target === modal) closePreview()
-    })
-    modal.querySelector('.close-preview').addEventListener('click', () => closePreview())
-    document.querySelector('#view').append(modal)
-    previewModal = modal
-    modal.querySelector('.close-preview').focus()
+    closeCurrentPreview = close
   }
-
-  const closePreviewOnEscape = (event) => {
-    if (event.key === 'Escape') closePreview()
-  }
-  window.addEventListener('keydown', closePreviewOnEscape)
 
   const bindUploadCard = (card) => {
     const file = uploads.find((item) => String(item.client_id) === card.dataset.id)
@@ -992,7 +1002,7 @@ async function renderSubmit() {
       try {
         if (file.status === 'ready') {
           await api(`/print/uploads/${file.temp_id}`, { method: 'DELETE' })
-          if (previewFileId === String(file.temp_id)) closePreview()
+          if (previewFileId === String(file.temp_id)) closeCurrentPreview?.()
         }
         uploads.splice(uploads.indexOf(file), 1)
         card.remove()
@@ -1205,8 +1215,7 @@ async function renderSubmit() {
   renderPage()
   state.cleanup.push(() => {
     if (quotaAnimationFrame !== null) cancelAnimationFrame(quotaAnimationFrame)
-    window.removeEventListener('keydown', closePreviewOnEscape)
-    closePreview(true)
+    closeCurrentPreview?.(true)
   })
 }
 
@@ -1300,7 +1309,7 @@ async function renderQueue(silent = false) {
               return `
             <article class="task-card queue-task-card ${task.mine ? 'mine' : ''}" data-task="${task.id}">
               <div class="task-main">
-                <div class="task-top"><div class="task-number"><strong>#${task.id}</strong>${task.mine ? '<span class="mine-badge">我的打印</span>' : ''}</div><span class="status-pill ${statusClass}">${statusLabels[task.status] || escapeHtml(task.status)}</span></div>
+                <div class="task-top"><div class="task-number"><strong>#${task.id}</strong>${task.mine ? '<span class="mine-badge">我的打印</span>' : ''}</div></div>
                 <h3>${escapeHtml(task.file_name || '打印任务')}</h3>
                 <p>${task.page_count} 页 · ${escapeHtml(pageSelectionLabel(task.odd_even))}${task.owner_name ? ` · ${escapeHtml(task.owner_name)}` : ''}</p>
                 <p class="task-time">提交：${escapeHtml(task.submitted_at)}${task.completed_at ? ` · 结束：${escapeHtml(task.completed_at)}` : ''}</p>
@@ -1308,7 +1317,8 @@ async function renderQueue(silent = false) {
                 ${isAdmin && task.status_detail ? `<p class="task-time">${escapeHtml(task.status_detail)}</p>` : ''}
               </div>
               <div class="queue-task-actions">
-                ${previewUrl ? `<a class="ghost-button" target="_blank" rel="noopener" href="${escapeHtml(previewUrl)}">${icon('eye')}<span>预览</span></a>` : ''}
+                <span class="status-pill ${statusClass}">${statusLabels[task.status] || escapeHtml(task.status)}</span>
+                ${previewUrl ? `<button class="ghost-button preview-task" type="button">${icon('eye')}<span>预览</span></button>` : ''}
                 ${sourceUrl ? `<a class="ghost-button" target="_blank" rel="noopener" href="${escapeHtml(sourceUrl)}">${icon('download')}<span>下载</span></a>` : ''}
                 ${(task.mine && ['queued', 'pending_review'].includes(task.status)) || (isAdmin && ['queued', 'pending_review', 'uncertain'].includes(task.status)) ? `<button class="ghost-button danger-text cancel-task">${icon('x')}<span>取消任务</span></button>` : ''}
               </div>
@@ -1355,6 +1365,15 @@ async function renderQueue(silent = false) {
     await api('/admin/printer/ack-toner', { method: 'POST' })
     await renderQueue(true)
   })
+  document.querySelectorAll('.preview-task').forEach((button) =>
+    button.addEventListener('click', () => {
+      const id = button.closest('[data-task]').dataset.task
+      const task = data.tasks.find((item) => String(item.id) === id)
+      if (task?.preview_url) {
+        openPdfPreview(task.preview_url, task.file_name || '打印任务', button)
+      }
+    }),
+  )
   document.querySelectorAll('.cancel-task').forEach((button) =>
     button.addEventListener('click', async () => {
       const id = button.closest('[data-task]').dataset.task
@@ -1635,11 +1654,11 @@ async function renderReview() {
             .map(
               (task) => `<article class="review-item" data-task="${task.id}">
                 <div class="review-item-main">
-                  <div class="task-top"><strong>#${task.id} · ${escapeHtml(task.owner_name)}</strong><span class="status-pill pending_review">待审核</span></div>
+                  <div class="task-top"><strong>#${task.id} · ${escapeHtml(task.owner_name)}</strong></div>
                   <h3>${escapeHtml(task.file_name)}</h3>
                   <p>${task.page_count} 页 · ${escapeHtml(pageSelectionLabel(task.odd_even))}</p>
                 </div>
-                <div class="button-row review-actions"><button class="primary-button approve">${icon('check')}<span>同意</span></button><button class="ghost-button danger-text reject">${icon('x')}<span>拒绝</span></button></div>
+                <div class="button-row review-actions"><span class="status-pill pending_review">待审核</span><button class="primary-button approve">${icon('check')}<span>同意</span></button><button class="ghost-button danger-text reject">${icon('x')}<span>拒绝</span></button></div>
               </article>`,
             )
             .join('') || '<p class="review-empty-state">当前没有待审核任务</p>'
