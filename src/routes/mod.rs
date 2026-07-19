@@ -258,6 +258,9 @@ mod tests {
         assert!(javascript.contains("data-range=\"custom\""));
         assert!(javascript.contains("parseCustomPageRange"));
         assert!(javascript.contains("function openActionDialog"));
+        assert!(!javascript.contains("confirm("));
+        assert!(!javascript.contains("prompt("));
+        assert!(!javascript.contains("alert("));
         assert!(javascript.contains("<th>角色</th><th class=\"user-centered\">状态</th>"));
         assert!(javascript.contains("id=\"user-filter\" class=\"button-row user-toolbar\""));
         assert!(!javascript.contains("<select name=\"role\">"));

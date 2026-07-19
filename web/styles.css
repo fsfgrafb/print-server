@@ -999,7 +999,7 @@ button:disabled {
 .review-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 24px;
   width: 100%;
   min-height: 118px;
@@ -1036,6 +1036,7 @@ button:disabled {
 }
 
 .review-actions {
+  align-self: start;
   justify-self: end;
   flex-wrap: nowrap;
 }
@@ -1480,8 +1481,9 @@ a:focus-visible {
 .queue-task-actions {
   display: flex;
   align-items: center;
-  align-self: center;
+  align-self: start;
   justify-content: flex-end;
+  justify-self: end;
   flex-wrap: wrap;
   gap: 8px;
   max-width: 420px;

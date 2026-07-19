@@ -1375,23 +1375,28 @@ async function renderQueue(silent = false) {
     }),
   )
   document.querySelectorAll('.cancel-task').forEach((button) =>
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', () => {
       const id = button.closest('[data-task]').dataset.task
       const task = data.tasks.find((item) => String(item.id) === id)
       const warning =
         task.status === 'uncertain'
           ? '请先在系统打印队列确认该作业未提交。确认后取消此任务？'
           : '确认取消此打印任务？'
-      if (!confirm(warning)) return
-      try {
-        await api(isAdmin ? `/admin/tasks/${id}` : `/print/tasks/${id}`, {
-          method: 'DELETE',
-          body: isAdmin ? { reason: task.status === 'uncertain' ? '管理员确认提交失败' : null } : undefined,
-        })
-        await renderQueue(true)
-      } catch (error) {
-        notify(error.message, 'error')
-      }
+      openActionDialog({
+        title: '取消打印任务',
+        message: warning,
+        confirmText: '确认取消',
+        danger: true,
+        onConfirm: async () => {
+          await api(isAdmin ? `/admin/tasks/${id}` : `/print/tasks/${id}`, {
+            method: 'DELETE',
+            body: isAdmin
+              ? { reason: task.status === 'uncertain' ? '管理员确认提交失败' : null }
+              : undefined,
+          })
+          await renderQueue(true)
+        },
+      })
     }),
   )
   if (!silent) startQueueUpdates()
@@ -1667,19 +1672,25 @@ async function renderReview() {
     </section>`
   document.querySelectorAll('[data-task]').forEach((card) => {
     const id = card.dataset.task
-    card.querySelector('.approve').addEventListener('click', () => reviewAction(id, 'approve'))
+    card
+      .querySelector('.approve')
+      .addEventListener('click', () =>
+        reviewAction(id, 'approve').catch((error) => notify(error.message, 'error')),
+      )
     card.querySelector('.reject').addEventListener('click', () => {
-      const reason = prompt('拒绝原因（可留空）')
-      if (reason !== null) reviewAction(id, 'reject', { reason: reason || null })
+      openActionDialog({
+        title: '拒绝打印申请',
+        message: '拒绝后该任务将被取消。',
+        confirmText: '确认拒绝',
+        danger: true,
+        inputLabel: '拒绝原因（可留空）',
+        onConfirm: (reason) => reviewAction(id, 'reject', { reason: reason || null }),
+      })
     })
   })
   async function reviewAction(id, action, body) {
-    try {
-      await api(`/admin/review/${id}/${action}`, { method: 'POST', body })
-      await renderReview()
-    } catch (error) {
-      notify(error.message, 'error')
-    }
+    await api(`/admin/review/${id}/${action}`, { method: 'POST', body })
+    await renderReview()
   }
 }
 
@@ -1696,19 +1707,33 @@ async function renderSystem() {
     </section>`
   document.querySelector('#system-form').addEventListener('submit', async (event) => {
     event.preventDefault()
-    try {
+    const dailyLimit = formValue(event.currentTarget, 'daily_limit')
+    const newAdmin = formValue(event.currentTarget, 'new_admin')
+    const saveSettings = async (transferAdmin = false) => {
       await api('/admin/config', {
         method: 'PUT',
-        body: { key: 'daily_limit', value: formValue(event.currentTarget, 'daily_limit') },
+        body: { key: 'daily_limit', value: dailyLimit },
       })
-      const newAdmin = formValue(event.currentTarget, 'new_admin')
-      if (newAdmin) {
-        if (!confirm(`确认把管理员转让给 ${newAdmin}？当前账号将变为普通用户。`)) return
+      if (transferAdmin) {
         await api('/admin/transfer', { method: 'POST', body: { new_admin_student_id: newAdmin } })
         setSession(await api('/auth/me'))
         location.hash = '#/submit'
       }
       notify('设置已保存', 'success')
+    }
+
+    if (newAdmin) {
+      openActionDialog({
+        title: '转让管理员',
+        message: `确认把管理员转让给 ${newAdmin}？当前账号将变为普通用户。`,
+        confirmText: '确认转让',
+        danger: true,
+        onConfirm: () => saveSettings(true),
+      })
+      return
+    }
+    try {
+      await saveSettings()
     } catch (error) {
       notify(error.message, 'error')
     }
