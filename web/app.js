@@ -694,6 +694,7 @@ function parseCustomPageRange(value, totalPages) {
 }
 
 function selectedPages(file) {
+  if (file.status !== 'ready') return 0
   if (file.odd_even === 'odd') return Math.ceil(file.page_count / 2)
   if (file.odd_even === 'even') return Math.floor(file.page_count / 2)
   if (file.odd_even === 'custom') {
@@ -703,6 +704,8 @@ function selectedPages(file) {
 }
 
 function selectedPagesSummary(file) {
+  if (file.status === 'uploading') return '正在上传并生成预览…'
+  if (file.status === 'failed') return `处理失败：${file.error}`
   if (file.odd_even === 'all') return `${file.page_count} 页`
   if (file.odd_even === 'custom') {
     const selection = parseCustomPageRange(file.custom_range, file.page_count)
@@ -728,6 +731,8 @@ async function renderSubmit() {
   ])
   const uploads = uploadsResponse.files.map((file) => ({
     ...file,
+    client_id: file.temp_id,
+    status: 'ready',
     odd_even: 'all',
     custom_range: '',
   }))
@@ -738,6 +743,7 @@ async function renderSubmit() {
   let previewReturnFocus = null
   let previewCloseTimer = null
   let submitting = false
+  let localUploadSequence = 0
 
   const projectedPages = () =>
     uploads.reduce((sum, file) => sum + selectedPages(file), 0)
@@ -753,14 +759,21 @@ async function renderSubmit() {
         : (Math.min(projected, quota.remaining) / quota.limit) * 100,
   })
 
-  const uploadCardMarkup = (file) => `
-    <article class="upload-card" data-id="${escapeHtml(file.temp_id)}">
+  const uploadCardMarkup = (file) => {
+    const ready = file.status === 'ready'
+    const uploading = file.status === 'uploading'
+    const summary = selectedPagesSummary(file)
+    const previewContent = uploading ? '<span class="upload-spinner" aria-hidden="true"></span>' : icon(ready ? 'eye' : 'x')
+    return `
+    <article class="upload-card upload-${file.status}" data-id="${escapeHtml(file.client_id)}">
       <div class="upload-card-heading">
-        <button class="icon-button preview-upload" title="预览" aria-label="预览" type="button">${icon('eye')}</button>
-        <div class="file-details"><strong title="${escapeHtml(file.original_name)}">${escapeHtml(file.original_name)}</strong><span>${selectedPagesSummary(file)}</span></div>
-        <button class="icon-button remove-button remove-upload" title="移出" aria-label="移出" type="button">${icon('x')}</button>
+        <button class="icon-button preview-upload ${uploading ? 'preview-loading' : ready ? '' : 'preview-failed'}" title="${ready ? '预览' : uploading ? '正在生成预览' : '文件处理失败'}" aria-label="${ready ? '预览' : uploading ? '正在生成预览' : '文件处理失败'}" type="button" ${ready ? '' : 'disabled'}>${previewContent}</button>
+        <div class="file-details"><strong title="${escapeHtml(file.original_name)}">${escapeHtml(file.original_name)}</strong><span title="${escapeHtml(summary)}">${escapeHtml(summary)}</span></div>
+        <button class="icon-button remove-button remove-upload" title="移出" aria-label="移出" type="button" ${uploading ? 'disabled' : ''}>${icon('x')}</button>
       </div>
-      <div class="page-range-section">
+      ${
+        ready
+          ? `<div class="page-range-section">
         <div class="page-range-control" data-selection="${file.odd_even}">
           <button type="button" data-range="all" class="${file.odd_even === 'all' ? 'active' : ''}">全部页</button>
           <button type="button" data-range="odd" class="${file.odd_even === 'odd' ? 'active' : ''}">奇数页</button>
@@ -775,8 +788,11 @@ async function renderSubmit() {
             </div>
           </div>
         </div>
-      </div>
+      </div>`
+          : ''
+      }
     </article>`
+  }
 
   const setQuotaSegments = (green, pending) => {
     const greenSegment = document.querySelector('.quota-green-segment')
@@ -815,8 +831,11 @@ async function renderSubmit() {
 
   const updateSubmitSummary = (animate = true) => {
     const projected = projectedPages()
+    const readyUploads = uploads.filter((file) => file.status === 'ready')
+    const hasPendingUpload = uploads.some((file) => file.status === 'uploading')
     const hasInvalidSelection = uploads.some(
       (file) =>
+        file.status === 'ready' &&
         file.odd_even === 'custom' &&
         (Boolean(parseCustomPageRange(file.custom_range, file.page_count).error) ||
           selectedPages(file) === 0),
@@ -834,7 +853,8 @@ async function renderSubmit() {
     }
     const submitButton = document.querySelector('#submit-files')
     if (submitButton) {
-      submitButton.disabled = submitting || uploads.length === 0 || hasInvalidSelection
+      submitButton.disabled =
+        submitting || readyUploads.length === 0 || hasPendingUpload || hasInvalidSelection
     }
     if (animate) animateQuotaSegments(widths.green, widths.pending)
     else setQuotaSegments(widths.green, widths.pending)
@@ -919,15 +939,20 @@ async function renderSubmit() {
   window.addEventListener('keydown', closePreviewOnEscape)
 
   const bindUploadCard = (card) => {
-    const file = uploads.find((item) => String(item.temp_id) === card.dataset.id)
+    const file = uploads.find((item) => String(item.client_id) === card.dataset.id)
     if (!file) return
-    card
-      .querySelector('.preview-upload')
-      .addEventListener('click', (event) => showPreview(file, event.currentTarget))
+    if (file.status === 'uploading') return
+    if (file.status === 'ready') {
+      card
+        .querySelector('.preview-upload')
+        .addEventListener('click', (event) => showPreview(file, event.currentTarget))
+    }
     card.querySelector('.remove-upload').addEventListener('click', async () => {
       try {
-        await api(`/print/uploads/${file.temp_id}`, { method: 'DELETE' })
-        if (previewFileId === String(file.temp_id)) closePreview()
+        if (file.status === 'ready') {
+          await api(`/print/uploads/${file.temp_id}`, { method: 'DELETE' })
+          if (previewFileId === String(file.temp_id)) closePreview()
+        }
         uploads.splice(uploads.indexOf(file), 1)
         card.remove()
         const uploadList = document.querySelector('.upload-list')
@@ -939,6 +964,7 @@ async function renderSubmit() {
         notify(error.message, 'error')
       }
     })
+    if (file.status !== 'ready') return
     card.querySelectorAll('[data-range]').forEach((button) =>
       button.addEventListener('click', () => {
         if (file.odd_even === button.dataset.range) {
@@ -980,6 +1006,19 @@ async function renderSubmit() {
     updateSubmitSummary()
   }
 
+  const replaceUploadCard = (file) => {
+    const currentCard = [...document.querySelectorAll('.upload-card')].find(
+      (card) => card.dataset.id === String(file.client_id),
+    )
+    if (!currentCard) return
+    const template = document.createElement('template')
+    template.innerHTML = uploadCardMarkup(file).trim()
+    const nextCard = template.content.firstElementChild
+    currentCard.replaceWith(nextCard)
+    bindUploadCard(nextCard)
+    updateSubmitSummary()
+  }
+
   const renderPage = () => {
     const projected = uploads.reduce((sum, file) => sum + selectedPages(file), 0)
     const widths = quotaWidths(projected)
@@ -988,7 +1027,7 @@ async function renderSubmit() {
         ${pageHeader(
           '提交打印',
           `访问 ${stats.visit_count} 次 · 累计打印 ${stats.print_total_pages} 页`,
-          `<button id="submit-files" class="primary-button" type="button" ${uploads.length ? '' : 'disabled'}>${icon('send')}<span>提交打印</span></button>`,
+          `<button id="submit-files" class="primary-button" type="button" ${uploads.some((file) => file.status === 'ready') ? '' : 'disabled'}>${icon('send')}<span>提交打印</span></button>`,
         )}
         <div class="submit-layout">
           <label id="dropzone" class="dropzone submit-dropzone">
@@ -1031,7 +1070,11 @@ async function renderSubmit() {
         </div>
       </section>`
     const input = document.querySelector('#file-input')
-    input.addEventListener('change', () => uploadFiles([...input.files]))
+    input.addEventListener('change', () => {
+      const files = [...input.files]
+      input.value = ''
+      uploadFiles(files)
+    })
     const dropzone = document.querySelector('#dropzone')
     for (const name of ['dragenter', 'dragover']) {
       dropzone.addEventListener(name, (event) => {
@@ -1055,11 +1098,13 @@ async function renderSubmit() {
         const result = await api('/print/submit', {
           method: 'POST',
           body: {
-            files: uploads.map(({ temp_id, odd_even, custom_range }) => ({
-              temp_id,
-              odd_even,
-              page_range: odd_even === 'custom' ? custom_range : undefined,
-            })),
+            files: uploads
+              .filter((file) => file.status === 'ready')
+              .map(({ temp_id, odd_even, custom_range }) => ({
+                temp_id,
+                odd_even,
+                page_range: odd_even === 'custom' ? custom_range : undefined,
+              })),
           },
         })
         notify(`已提交 ${result.tasks.length} 个任务`, 'success')
@@ -1074,22 +1119,36 @@ async function renderSubmit() {
 
   async function uploadFiles(files) {
     if (files.length === 0) return
+    const pendingUploads = files.map((file) => ({
+      client_id: `pending-${Date.now()}-${++localUploadSequence}`,
+      original_name: file.name,
+      status: 'uploading',
+      odd_even: 'all',
+      custom_range: '',
+      source_file: file,
+    }))
+    uploads.push(...pendingUploads)
+    appendUploadCards(pendingUploads)
+
     await Promise.all(
-      files.map(async (file) => {
+      pendingUploads.map(async (pendingUpload) => {
         const data = new FormData()
-        data.append('files', file)
+        data.append('files', pendingUpload.source_file)
         try {
           const result = await api('/print/upload', { method: 'POST', body: data })
-          const addedFiles = result.files.map((item) => ({
-            ...item,
-            odd_even: 'all',
-            custom_range: '',
-          }))
-          uploads.push(...addedFiles)
-          appendUploadCards(addedFiles)
+          const uploadedFile = result.files[0]
+          if (!uploadedFile) throw new Error('服务器未返回上传结果')
+          Object.assign(pendingUpload, uploadedFile, {
+            status: 'ready',
+            source_file: null,
+          })
         } catch (error) {
-          notify(`${file.name}：${error.message}`, 'error')
+          pendingUpload.status = 'failed'
+          pendingUpload.error = error.message
+          pendingUpload.source_file = null
+          notify(`${pendingUpload.original_name}：${error.message}`, 'error')
         }
+        replaceUploadCard(pendingUpload)
       }),
     )
   }

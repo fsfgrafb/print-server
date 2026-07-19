@@ -484,6 +484,16 @@ button:disabled {
   animation: elementFlyIn 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.upload-card.upload-uploading {
+  border-color: #cddded;
+  background: #fbfdff;
+}
+
+.upload-card.upload-failed {
+  border-color: #efc2bf;
+  background: #fffafa;
+}
+
 .upload-card-heading {
   display: flex;
   align-items: center;
@@ -513,13 +523,33 @@ button:disabled {
   line-height: 20px;
 }
 
-.preview-button:disabled {
+.preview-upload:disabled {
   opacity: 1;
+  cursor: default;
+}
+
+.preview-failed {
+  color: #b42318;
+  border-color: #efc2bf;
+  background: #fff5f4;
+}
+
+.upload-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c8d8e8;
+  border-top-color: #1667b7;
+  border-radius: 50%;
+  animation: uploadSpinner 720ms linear infinite;
 }
 
 .remove-button {
   flex: 0 0 auto;
   color: #b42318;
+}
+
+@keyframes uploadSpinner {
+  to { transform: rotate(360deg); }
 }
 
 .page-range-section {
